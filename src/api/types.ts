@@ -176,6 +176,8 @@ export interface FiledDocument {
 // ---------------------------------------------------------------------------
 export type ApplicationStatus =
   | 'draft'
+  // Submitted from this app; with the branch, not yet in the chain.
+  | 'received'
   | 'new'
   | 'submitted_for_review'
   | 'returned'
