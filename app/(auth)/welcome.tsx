@@ -18,18 +18,11 @@ export default function Welcome() {
         <Text style={styles.subtitle}>Multi-purpose Co-operative Society Ltd</Text>
       </View>
       <View style={styles.actions}>
-        <Button
-          title="I am a member"
-          onPress={() => router.push({ pathname: '/(auth)/sign-in', params: { purpose: 'sign_in' } })}
-        />
-        <Button
-          title="Apply to become a member"
-          variant="secondary"
-          onPress={() => router.push({ pathname: '/(auth)/sign-in', params: { purpose: 'sign_up' } })}
-        />
+        <Button title="I'm already a member" onPress={() => router.push('/(auth)/link')} />
+        <Button title="Become a member" variant="secondary" onPress={() => router.push('/(auth)/sign-up')} />
         {API_MODE === 'mock' ? (
           <Text style={styles.note}>
-            Demo mode. Member: 5789 1234 · New applicant: 5999 0000 · Code: 123456
+            Demo mode. Member: NIC P1503881234567, AB0001 · New applicant: any mobile · Code: 123456
           </Text>
         ) : null}
       </View>

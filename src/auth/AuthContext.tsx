@@ -1,9 +1,12 @@
 // Who is signed in, for every screen.
 //
-// The session (a bearer token and who it belongs to) is read from the device
-// keychain once at start, kept in memory, and cleared on sign-out or on the
-// first `unauthenticated` from the API — a token the server no longer
-// accepts is not worth keeping.
+// The session (a bearer token, a refresh token and who they belong to) is
+// read from the device keychain once at start and kept in memory. This is
+// the authentication: once a member has linked the device (NIC + AB Number,
+// then the code to their registered mobile), it is the session that gets
+// them in — not the NIC and AB Number again. An access token the server no
+// longer accepts is refreshed once; if that is refused too, the device is
+// no longer linked and the person is signed out.
 import React, {
   createContext,
   useCallback,
@@ -52,8 +55,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setSession(null);
     await saveSession(null);
     if (current) {
-      // Best effort: the token is gone locally either way.
-      api.logout(current.accessToken).catch(() => undefined);
+      // Best effort: the tokens are gone locally either way.
+      api.logout(current.accessToken, current.refreshToken).catch(() => undefined);
     }
   }, [session]);
 
@@ -63,12 +66,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         return await fn(session.accessToken);
       } catch (e) {
-        if (e instanceof ApiError && e.code === 'unauthenticated') {
-          setSession(null);
-          await saveSession(null);
-        }
-        throw e;
+        if (!(e instanceof ApiError) || e.code !== 'unauthenticated') throw e;
       }
+      // The access token was refused: rotate through the refresh token once.
+      let renewed: Session;
+      try {
+        renewed = await api.refresh(session.refreshToken);
+      } catch (refreshError) {
+        setSession(null);
+        await saveSession(null);
+        throw refreshError;
+      }
+      setSession(renewed);
+      await saveSession(renewed);
+      return fn(renewed.accessToken);
     },
     [session]
   );

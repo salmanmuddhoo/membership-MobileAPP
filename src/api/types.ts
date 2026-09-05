@@ -74,11 +74,30 @@ export interface Reference {
 }
 
 // ---------------------------------------------------------------------------
-// Authentication: one-time code to the mobile number on record
+// Identity. Four different things, kept apart on purpose:
+//
+//   identification  NIC + AB Number name one active member (link-member)
+//   verification    a one-time code proves the person holds that member's
+//                   registered mobile (verify-otp)
+//   authentication  the session that results, held on the device, is what
+//                   every later request presents (Bearer accessToken)
+//   memberId        the internal link from that session to the member row —
+//                   server-side only, never sent to the phone
+//
+// NIC + AB Number on their own open nothing: the code goes to the number
+// on record, which the person entering them does not get to choose.
 // ---------------------------------------------------------------------------
+export interface LinkMemberRequest {
+  nic: string;
+  // The Member No. printed on the card: AB followed by digits.
+  abNumber: string;
+}
+
 export interface OtpChallenge {
   challengeId: string;
-  // The number the code went to, masked: +230 5xxx 1234.
+  // What the challenge will produce once the code is verified.
+  purpose: 'link_member' | 'sign_up';
+  // The number the code went to, masked: +2305xxx234.
   sentTo: string;
   expiresInSeconds: number;
 }
@@ -92,10 +111,13 @@ export interface Session {
   identity: {
     kind: IdentityKind;
     // Present for a member; a customer has accounts but no Member No.; an
-    // applicant has neither yet.
+    // applicant has neither yet. The internal memberId is deliberately not
+    // here — the server resolves it from the session.
     memberNo: string | null;
     displayName: string;
     mobile: string;
+    // When this device was linked to the member record.
+    linkedAt: string;
   };
 }
 

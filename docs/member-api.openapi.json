@@ -276,25 +276,36 @@
           "membershipTypes"
         ]
       },
-      "OtpRequest": {
+      "LinkMemberRequest": {
+        "type": "object",
+        "properties": {
+          "nic": {
+            "type": "string",
+            "description": "National identity card number, exactly as on the card.",
+            "example": "A0101801234567"
+          },
+          "abNumber": {
+            "type": "string",
+            "description": "The Member No. on the card (member.member_no), also called the Shares Account Number.",
+            "example": "AB0001"
+          }
+        },
+        "required": [
+          "nic",
+          "abNumber"
+        ]
+      },
+      "SignUpRequest": {
         "type": "object",
         "properties": {
           "mobile": {
             "type": "string",
             "description": "Any form toInternational accepts.",
             "example": "5789 1234"
-          },
-          "purpose": {
-            "type": "string",
-            "enum": [
-              "sign_in",
-              "sign_up"
-            ]
           }
         },
         "required": [
-          "mobile",
-          "purpose"
+          "mobile"
         ]
       },
       "OtpChallenge": {
@@ -304,9 +315,16 @@
             "type": "string",
             "format": "uuid"
           },
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "link_member",
+              "sign_up"
+            ]
+          },
           "sentTo": {
             "type": "string",
-            "description": "Masked.",
+            "description": "Masked. For link_member this is the registered mobile, which the caller did not supply.",
             "example": "+2305xxx234"
           },
           "expiresInSeconds": {
@@ -315,6 +333,7 @@
         },
         "required": [
           "challengeId",
+          "purpose",
           "sentTo",
           "expiresInSeconds"
         ]
@@ -369,13 +388,18 @@
               "mobile": {
                 "type": "string",
                 "description": "E.164"
+              },
+              "linkedAt": {
+                "type": "string",
+                "format": "date-time"
               }
             },
             "required": [
               "kind",
               "memberNo",
               "displayName",
-              "mobile"
+              "mobile",
+              "linkedAt"
             ]
           }
         },
@@ -823,7 +847,7 @@
       "memberToken": {
         "type": "http",
         "scheme": "bearer",
-        "description": "Access token from verify-otp or refresh."
+        "description": "Authentication: the access token from verify-otp or refresh. The server resolves it to member_session and its member_id; NIC and AB Number are never presented again."
       }
     }
   },
@@ -882,9 +906,10 @@
         }
       }
     },
-    "/api/v1/member/auth/request-otp": {
+    "/api/v1/member/auth/link-member": {
       "post": {
-        "summary": "Send a one-time code to a mobile number",
+        "summary": "Identify an existing member by NIC + AB Number and send a code to their registered mobile",
+        "description": "Identification only: opens nothing by itself. Exact pair, active members only. Not the staff existing-member-search — no fragments, no names in the response. Rate-limited per NIC, per AB Number and per IP.",
         "tags": [
           "Authentication"
         ],
@@ -894,14 +919,98 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/OtpRequest"
+                "$ref": "#/components/schemas/LinkMemberRequest"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Always 200 for a well-formed number, known or not.",
+            "description": "Code sent to the mobile on record; sentTo is masked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "correlationId"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/OtpChallenge"
+                    },
+                    "correlationId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The pair does not name one active member (one message whichever half was wrong)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Malformed; details.nic / details.abNumber",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests; see retry-after",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "A defect; quote the correlation id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/member/auth/sign-up": {
+      "post": {
+        "summary": "Verify a mobile number to start a membership application",
+        "description": "No AB Number needed. Always 200 for a well-formed number, known or not; the session it leads to is an applicant session whoever the number belongs to.",
+        "tags": [
+          "Authentication"
+        ],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignUpRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
             "content": {
               "application/json": {
                 "schema": {
@@ -955,9 +1064,92 @@
         }
       }
     },
+    "/api/v1/member/auth/resend-otp": {
+      "post": {
+        "summary": "Send a fresh code for an existing challenge",
+        "tags": [
+          "Authentication"
+        ],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "challengeId": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "required": [
+                  "challengeId"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "correlationId"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/OtpChallenge"
+                    },
+                    "correlationId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such challenge",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests; see retry-after",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "A defect; quote the correlation id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/member/auth/verify-otp": {
       "post": {
-        "summary": "Exchange a code for a session",
+        "summary": "Verify the code and create the session",
+        "description": "Verification. For a link_member challenge this creates the link between the mobile identity and the internal memberId (server-side) and returns a member session; for sign_up, an applicant session.",
         "tags": [
           "Authentication"
         ],
@@ -996,7 +1188,7 @@
             }
           },
           "404": {
-            "description": "Challenge expired or burnt",
+            "description": "Challenge expired or burnt (five wrong codes)",
             "content": {
               "application/json": {
                 "schema": {
@@ -1121,7 +1313,7 @@
     },
     "/api/v1/member/auth/logout": {
       "post": {
-        "summary": "Revoke the session",
+        "summary": "Revoke the session; the device must link again",
         "tags": [
           "Authentication"
         ],
@@ -1130,6 +1322,24 @@
             "memberToken": []
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "refreshToken": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "refreshToken"
+                ]
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Success",

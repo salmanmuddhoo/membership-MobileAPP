@@ -3,9 +3,11 @@
 The member-facing app for Al Barakah MCSL, on iOS and Android from one
 codebase. Two jobs:
 
-1. **An existing member** signs in with the mobile number on their record,
-   sees their membership, accounts and documents, and captures or corrects
-   their own details — which staff verify before the record changes.
+1. **An existing member** links the phone to their membership once — NIC
+   and AB Number, then a code sent to the mobile on their record — and from
+   then on the stored session gets them in. They see their membership,
+   accounts and documents, and capture or correct their own details, which
+   staff verify before the record changes.
 2. **A new applicant** applies to become a member from their phone: the same
    form the officer captures, the documents photographed on the spot, saved
    as they go and submitted into the same workflow.
@@ -25,10 +27,10 @@ npm start          # Expo dev server; press a for Android, i for iOS, w for web
 Without an `EXPO_PUBLIC_API_URL` the app runs against a built-in **mock
 backend** that implements the whole contract in memory. Nothing to set up:
 
-| Sign in as              | Mobile      | Code     |
-| ----------------------- | ----------- | -------- |
-| Existing member AB0001  | `5789 1234` | `123456` |
-| Someone with no record  | `5999 0000` | `123456` |
+| Path                 | Enter                                   | Code     |
+| -------------------- | --------------------------------------- | -------- |
+| I'm already a member | NIC `P1503881234567`, AB Number `AB0001` | `123456` |
+| Become a member      | any mobile, e.g. `5999 0000`             | `123456` |
 
 To point at a real backend, copy `.env.example` to `.env` and set
 `EXPO_PUBLIC_API_URL` (the web application's origin) and
@@ -69,7 +71,7 @@ is agreeing the API. They are not worse; they are more.
 
 ```text
 app/                       routes (Expo Router)
-├── (auth)/                welcome · sign-in (mobile) · verify (one-time code)
+├── (auth)/                welcome · link (NIC + AB Number) · sign-up (mobile) · verify
 ├── (member)/              tabs: home · accounts · applications · my details
 ├── (apply)/               choose type · [id]/form · documents · review · status
 ├── account/[id]           an account's transactions
@@ -130,12 +132,13 @@ cases. If that rule changes in the web application, change it here too.
 These are the assumptions the app is built on. Each is a one-line change
 if the decision goes the other way.
 
-1. **Identity is the mobile number.** A one-time code by SMS (later
-   WhatsApp) to the number on the member's record. It is already stored in
-   E.164 for exactly this reason, and it is what a member has in their hand.
-   Alternatives: Member No. + NIC + OTP (stronger, more to type), or an
-   Entra External ID consumer tenant (heavier, but single sign-on with the
-   staff app). See `docs/member-api.md`, "Identity".
+1. **Identification, verification and authentication are three things.**
+   NIC + AB Number identify one active member; a code to the mobile on that
+   member's record verifies the person; the session that results, held in
+   the device keychain, authenticates every later request. NIC + AB Number
+   on their own open nothing, and the internal `memberId` never reaches the
+   phone. A new applicant needs no AB Number: their mobile is verified and
+   the NIC goes on the application. See `docs/member-api.md`, "Identity".
 2. **A member's own capture is a change request, not an edit.** Staff
    verify before the record changes; the audit trail shows who changed
    what. The app shows "pending" meanwhile.
@@ -151,13 +154,13 @@ if the decision goes the other way.
 
 ## Screens, in order
 
-Welcome → Sign in (mobile) → Code → **Home** (member number, balances,
+Welcome → Link my membership (NIC + AB Number) → Code → **Home** (member number, balances,
 pending update) · **Accounts** → account → transactions · **Applications**
 (status, returned comments) · **My details** (every section, documents on
 file, expiring documents) → Complete / update my details → sent for
 verification.
 
-Apply → choose membership type (fees, documents listed) → one step per
+Become a member (mobile) → Code → Apply → choose membership type (fees, documents listed) → one step per
 party → Documents (camera / photo / PDF, uploaded through the brokered
 session) → Review (every gap named, Edit links) → Submitted (reference,
 what happens next, history).
@@ -167,10 +170,10 @@ what happens next, history).
 Taken from the web build of the same code, driven through both flows by
 Chromium (the smoke test in the PR description).
 
-| Welcome | Home | My details |
-| --- | --- | --- |
-| ![Welcome](docs/screenshots/01-welcome.png) | ![Home](docs/screenshots/04-home-member.png) | ![My details](docs/screenshots/07-my-details.png) |
+| Welcome | Link my membership | Home | My details |
+| --- | --- | --- | --- |
+| ![Welcome](docs/screenshots/01-welcome.png) | ![Link](docs/screenshots/02-link-member.png) | ![Home](docs/screenshots/04-home-member.png) | ![My details](docs/screenshots/07-my-details.png) |
 
 | Form validation | Documents | Review | Submitted |
 | --- | --- | --- | --- |
-| ![Validation](docs/screenshots/11-form-validation.png) | ![Documents](docs/screenshots/14-documents.png) | ![Review](docs/screenshots/16-review.png) | ![Submitted](docs/screenshots/17-submitted.png) |
+| ![Validation](docs/screenshots/12-form-validation.png) | ![Documents](docs/screenshots/15-documents.png) | ![Review](docs/screenshots/17-review.png) | ![Submitted](docs/screenshots/18-submitted.png) |

@@ -7,7 +7,7 @@ import { colors } from '@/ui/theme';
 export default function ApplyLayout() {
   const { ready, session } = useAuth();
   if (!ready) return <Loading />;
-  if (!session) return <Redirect href={{ pathname: '/(auth)/sign-in', params: { purpose: 'sign_up' } }} />;
+  if (!session) return <Redirect href="/(auth)/sign-up" />;
   return (
     <Stack
       screenOptions={{

@@ -1,3 +1,6 @@
+// Verification: the code proves the person holds the mobile the challenge
+// went to. On success the session that comes back is the authentication
+// from here on — for a member, this is the moment the phone is linked.
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { api, ApiError } from '@/api';
@@ -10,10 +13,10 @@ export default function Verify() {
   const params = useLocalSearchParams<{
     challengeId: string;
     sentTo: string;
-    mobile: string;
-    purpose: 'sign_in' | 'sign_up';
+    purpose: 'link_member' | 'sign_up';
   }>();
   const [challengeId, setChallengeId] = useState(params.challengeId);
+  const [sentTo, setSentTo] = useState(params.sentTo);
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
@@ -33,8 +36,7 @@ export default function Verify() {
     try {
       const session = await api.verifyOtp(challengeId, code.trim());
       await signIn(session);
-      const isMember = session.identity.kind !== 'applicant';
-      if (params.purpose === 'sign_up' && !isMember) {
+      if (params.purpose === 'sign_up') {
         router.replace('/(apply)');
       } else {
         router.replace('/(member)/home');
@@ -42,7 +44,9 @@ export default function Verify() {
     } catch (e) {
       if (e instanceof ApiError) {
         if (e.details.code?.[0]) setError(e.details.code[0]);
-        else setProblem(e.userMessage);
+        else if (e.code === 'not_found') {
+          setProblem(`${e.message} Go back to start again.`);
+        } else setProblem(e.userMessage);
       } else setProblem('Something went wrong. Please try again.');
     } finally {
       setBusy(false);
@@ -52,8 +56,9 @@ export default function Verify() {
   async function resend() {
     setProblem(null);
     try {
-      const challenge = await api.requestOtp(params.mobile, params.purpose);
+      const challenge = await api.resendOtp(challengeId);
       setChallengeId(challenge.challengeId);
+      setSentTo(challenge.sentTo);
       setResendIn(30);
     } catch (e) {
       setProblem(e instanceof ApiError ? e.userMessage : 'Could not resend. Try again.');
@@ -63,7 +68,11 @@ export default function Verify() {
   return (
     <Screen>
       <Title>Enter the code</Title>
-      <Body muted>Sent by SMS to {params.sentTo}.</Body>
+      <Body muted>
+        {params.purpose === 'link_member'
+          ? `Sent by SMS to the mobile on your membership record, ${sentTo}. If that number is no longer yours, visit a branch with your ID.`
+          : `Sent by SMS to ${sentTo}.`}
+      </Body>
       <Spacer size="xl" />
       {problem ? <Banner tone="danger">{problem}</Banner> : null}
       <TextField

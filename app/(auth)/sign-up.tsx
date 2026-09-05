@@ -1,13 +1,14 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
+// A new applicant has no AB Number. Their mobile is verified so the
+// application can be saved as they go and staff have a confirmed number;
+// the NIC is captured on the application itself.
+import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { api, ApiError } from '@/api';
 import { toInternational, PhoneFormatError } from '@/lib/phone';
 import { Banner, Body, Button, Screen, Spacer, TextField, Title } from '@/ui';
 
-export default function SignIn() {
+export default function SignUp() {
   const router = useRouter();
-  const { purpose } = useLocalSearchParams<{ purpose?: 'sign_in' | 'sign_up' }>();
-  const signingUp = purpose === 'sign_up';
   const [mobile, setMobile] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
@@ -25,15 +26,10 @@ export default function SignIn() {
     }
     setBusy(true);
     try {
-      const challenge = await api.requestOtp(e164, signingUp ? 'sign_up' : 'sign_in');
+      const challenge = await api.startSignUp(e164);
       router.push({
         pathname: '/(auth)/verify',
-        params: {
-          challengeId: challenge.challengeId,
-          sentTo: challenge.sentTo,
-          mobile: e164,
-          purpose: signingUp ? 'sign_up' : 'sign_in',
-        },
+        params: { challengeId: challenge.challengeId, sentTo: challenge.sentTo, purpose: challenge.purpose },
       });
     } catch (e) {
       if (e instanceof ApiError) {
@@ -47,11 +43,9 @@ export default function SignIn() {
 
   return (
     <Screen>
-      <Title>{signingUp ? 'Start your application' : 'Welcome back'}</Title>
+      <Title>Become a member</Title>
       <Body muted>
-        {signingUp
-          ? 'Enter your mobile number. A code will be sent to it so your application can be saved as you go.'
-          : 'Enter the mobile number on your membership record. A code will be sent to it.'}
+        Enter your mobile number. A code will be sent to it so your application can be saved as you go. You will need your NIC for the application.
       </Body>
       <Spacer size="xl" />
       {problem ? <Banner tone="danger">{problem}</Banner> : null}

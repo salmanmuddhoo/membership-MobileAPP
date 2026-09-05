@@ -7,6 +7,7 @@ import type {
   Application,
   ChangeRequest,
   FiledDocument,
+  LinkMemberRequest,
   MemberProfile,
   OtpChallenge,
   PartyValues,
@@ -25,11 +26,20 @@ export function memberApi(transport: Transport) {
     // --- public -----------------------------------------------------------
     reference: () => call<Reference>('/reference'),
 
-    requestOtp: (mobile: string, purpose: 'sign_in' | 'sign_up') =>
-      call<OtpChallenge>('/auth/request-otp', {
-        method: 'POST',
-        body: { mobile, purpose },
-      }),
+    // Existing member: NIC + AB Number identify them; the code goes to the
+    // mobile on their record, whatever they typed.
+    linkMember: (input: LinkMemberRequest) =>
+      call<OtpChallenge>('/auth/link-member', { method: 'POST', body: input }),
+
+    // New applicant: no AB Number yet. The code goes to the number they
+    // give, which becomes the verified mobile on their application. This
+    // never yields member access, whoever the number belongs to.
+    startSignUp: (mobile: string) =>
+      call<OtpChallenge>('/auth/sign-up', { method: 'POST', body: { mobile } }),
+
+    // Resend the code for a challenge already issued, either kind.
+    resendOtp: (challengeId: string) =>
+      call<OtpChallenge>('/auth/resend-otp', { method: 'POST', body: { challengeId } }),
 
     verifyOtp: (challengeId: string, code: string) =>
       call<Session>('/auth/verify-otp', {
@@ -41,8 +51,9 @@ export function memberApi(transport: Transport) {
       call<Session>('/auth/refresh', { method: 'POST', body: { refreshToken } }),
 
     // --- signed in ---------------------------------------------------------
-    logout: (token: string) =>
-      call<{ ok: true }>('/auth/logout', { method: 'POST', token }),
+    // Revokes the refresh token too: after this the device must link again.
+    logout: (token: string, refreshToken: string) =>
+      call<{ ok: true }>('/auth/logout', { method: 'POST', body: { refreshToken }, token }),
 
     me: (token: string) => call<MemberProfile>('/me', { token }),
 

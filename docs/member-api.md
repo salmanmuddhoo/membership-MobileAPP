@@ -17,68 +17,123 @@ the fastest way to see every rule below exercised (`npm test`).
 
 ## Identity
 
-Sign-in is a one-time code to the mobile number on record. That number is
-already stored in E.164 for the WhatsApp notifications of M9, so it is the
-one thing every member record reliably has and every member has in hand.
+Four different things, kept apart because conflating them is how a phone
+app ends up letting a card number open an account:
 
-| Step | Endpoint | Notes |
+| Concern | What it is | Where it happens |
 | --- | --- | --- |
-| 1 | `POST /auth/request-otp` `{ mobile, purpose }` | `mobile` in any form the web app's `toInternational` accepts. `purpose` is `sign_in` or `sign_up`. Returns `{ challengeId, sentTo (masked), expiresInSeconds }`. **Always returns 200 for a well-formed number**, whether or not a record exists — the response must not reveal who is a member. Rate-limit per number and per IP, hard. |
-| 2 | `POST /auth/verify-otp` `{ challengeId, code }` | Returns a `Session`: `accessToken` (short-lived, ~1h), `refreshToken` (long-lived, rotated on use, revocable), and `identity { kind, memberNo, displayName, mobile }`. `kind` is `member` (a `member` row whose applicant party carries this mobile), `customer` (a non-member customer, migration 0027), or `applicant` (nobody yet — the sign-up path). Five wrong codes burn the challenge. |
-| 3 | `POST /auth/refresh` `{ refreshToken }` | New pair; the old refresh token is dead. |
-| 4 | `POST /auth/logout` | Revokes the refresh token. |
+| **Identification / linking** | NIC + AB Number name exactly one active member | `POST /auth/link-member` |
+| **Verification** | A one-time code proves the person holds the mobile on that member's record | `POST /auth/verify-otp` |
+| **Authentication** | The session that results — access token + refresh token held in the device keychain — is what every later request presents | `Authorization: Bearer` on everything else; `POST /auth/refresh` |
+| **memberId** | The internal link from that session to the `member` row | `member_session.member_id`, server-side only; never sent to the phone |
 
-Every other endpoint takes `Authorization: Bearer <accessToken>`. The
-principal it resolves to is a **member principal**, a different thing from
-the staff `Principal` in `src/lib/access/principal.ts`: it has no
-permissions, only an identity — one `member.id`, or one `customer.id`, or
-one verified mobile with neither. `defineEndpoint` gains a `caller:
-'member'` option (alongside `permission`) so a staff endpoint can never be
-reached with a member token and vice versa, and the OpenAPI generator tags
-the surface separately.
+**NIC + AB Number alone open nothing.** They select whose registered mobile
+the code goes to. The person typing them does not get to choose that
+number, cannot see it unmasked, and cannot change it from the app — a
+member whose number has changed goes to a branch with their ID. So a lost
+card, a NIC seen on a form, or both together, get an attacker exactly as
+far as the SMS they will not receive.
+
+**AB Number.** The Member No. printed on the card, `AB` followed by digits
+(`member.member_no`, allocated by `next_member_number()`). The business
+also calls it the Shares Account Number; the app labels the field "AB
+Number (Shares Account No.)" for that reason. If the two ever differ —
+the shares account has its own `account_no` — matching is on
+`member.member_no` and the label should be revisited, not the rule.
+
+### Linking an existing member
+
+| Step | Endpoint | Rules |
+| --- | --- | --- |
+| 1 | `POST /auth/link-member` `{ nic, abNumber }` | Exact match, both together, against the applicant party's `nic` on the member's founding application (or the imported record for M7 legacy members) and `member.member_no`; `member.status = 'active'` only. 422 if either is malformed (`details.nic`, `details.abNumber`). **404 if the pair does not name one active member** — one message for "no such NIC", "no such AB Number" and "not together", so the response never says which half was right. Returns an `OtpChallenge` with `purpose: 'link_member'` and the registered mobile **masked** (`+2305xxx234`). Audit: `member.link.requested`, with the NIC hashed, never stored plain in the log. |
+| 2 | `POST /auth/verify-otp` `{ challengeId, code }` | Five wrong codes burn the challenge (404 from then on); expiry five minutes. On success: a `member_session` row with `member_id` set, and a `Session` whose `identity.kind` is `member`. Audit: `member.link.completed`. |
+| 3 | `POST /auth/refresh` `{ refreshToken }` | New pair; the old refresh token is dead the moment it is used. Refresh tokens live 90 days from last use, so a phone that opens the app now and then never re-links; one left in a drawer for a season does. |
+| 4 | `POST /auth/logout` `{ refreshToken }` | Revokes the session. The device must link again — NIC + AB Number + code — to get back in. A branch can do the same for a member who lost their phone by revoking every `member_session` for that `member_id`. |
+| — | `POST /auth/resend-otp` `{ challengeId }` | New code, same purpose, same masked number; the previous code is dead. Counts against the same rate limit as the request that started it. |
+
+This is **not** the staff `GET /api/v1/applications/existing-member-search`.
+That endpoint matches a fragment of a name, NIC or Member No. against every
+active member and returns names — right for an officer with
+`application.capture`, and exactly what a public endpoint must never do.
+`link-member` is a separate endpoint on the member surface: exact pair
+only, no search, no names in the response, rate-limited per NIC, per AB
+Number and per IP, and the staff endpoint stays behind its staff permission
+where a member token cannot reach it.
+
+### A new applicant
+
+Someone applying has no AB Number, and must not need one.
+
+| Step | Endpoint | Rules |
+| --- | --- | --- |
+| 1 | `POST /auth/sign-up` `{ mobile }` | Any form `toInternational` accepts. **Always 200 for a well-formed number**, whether or not it is on some record — the response must not reveal who is a member. Returns an `OtpChallenge` with `purpose: 'sign_up'`. |
+| 2 | `POST /auth/verify-otp` | On success a `member_session` with `member_id` **null** and `identity.kind: 'applicant'`. That session can start, save and submit an application and read its own applications — nothing else. **It never resolves to a member record, even when the verified mobile is the one on a member's file**: member access comes only through linking. That is what makes step 1 safe to answer 200 for everyone. |
+
+The verified mobile becomes the applicant's `mobile` on the application,
+pre-filled and read-only in the app: the backend has already proved they
+hold it, staff have a confirmed number to call, and M9's notifications
+have a destination before anything is approved. The NIC is captured on
+the application form like every other field, and checked by staff against
+the ID card they file.
+
+An existing member who chooses "Become a member" by mistake gets an
+applicant session and an empty Home telling them to link instead; nothing
+about their membership is shown or implied.
 
 **Why not Entra External ID?** It is the right long-term answer if the
 Society wants one identity across a future member portal, financing
 applications and the app, and it gives password reset, MFA and account
 recovery for free. It is also a second tenant to operate, a consumer
 sign-up flow to brand, and a mapping from Entra subject to member row that
-the OTP flow gets for free from the phone number. The endpoints above do
-not change if the exchange behind `verify-otp` becomes an OIDC callback
-later; the app changes one screen.
+the link flow gets from NIC + AB Number. The endpoints above do not change
+if `verify-otp` later becomes an OIDC callback; the app changes one screen.
 
-**Sign-up identity.** A person with no record verifies their number the
-same way and gets an `applicant` session. That number becomes the
-applicant's `mobile` on the application, pre-filled and read-only in the
-app: the backend has already proved they hold it. It also gives the officer
-a verified number to call back on, and the workflow's M9 notifications a
-destination, before anything is approved.
+### What the phone holds
+
+`Session` — `accessToken` (short-lived, ~1 h), `refreshToken` (rotated on
+use, revocable), and `identity { kind, memberNo, displayName, mobile,
+linkedAt }`. It is stored in SecureStore (keychain / keystore), never in
+plain storage, and cleared on sign-out or when a refresh is refused. The
+NIC and AB Number are never stored on the device; the internal `memberId`
+is never sent to it.
 
 ## Tables the web application needs
 
 ```sql
 -- migration 00xx_member_identity.sql
+-- One code, one purpose. For link_member the mobile is the member's
+-- registered one and member_id is already known; for sign_up it is the
+-- number the applicant typed and member_id is null.
 create table member_login_challenge (
     id            uuid primary key default gen_random_uuid(),
+    purpose       text not null check (purpose in ('link_member', 'sign_up')),
     mobile        text not null,               -- E.164
-    purpose       text not null check (purpose in ('sign_in', 'sign_up')),
+    member_id     uuid references member(id),  -- set for link_member
     code_hash     text not null,               -- never the code
     attempts      int  not null default 0,
     expires_at    timestamptz not null,
     consumed_at   timestamptz,
-    created_at    timestamptz not null default now()
+    created_at    timestamptz not null default now(),
+    constraint member_login_challenge_purpose_agrees_with_member
+        check ((purpose = 'link_member') = (member_id is not null))
 );
 
+-- The authenticated mobile identity. member_id is the link to the member
+-- record (null for an applicant); it is resolved server-side on every
+-- request and never returned to the phone.
 create table member_session (
     id                 uuid primary key default gen_random_uuid(),
-    mobile             text not null,
+    mobile             text not null,          -- verified, E.164
     member_id          uuid references member(id),
     customer_id        uuid references customer(id),
     refresh_token_hash text not null unique,
-    issued_at          timestamptz not null default now(),
-    expires_at         timestamptz not null,
+    linked_at          timestamptz not null default now(),
+    last_used_at       timestamptz not null default now(),
+    expires_at         timestamptz not null,   -- 90 days from last_used_at
     revoked_at         timestamptz,
     device_label       text
 );
+create index member_session_member_idx on member_session (member_id) where revoked_at is null;
 
 -- A member's own capture of their details: verified by staff before it
 -- touches member/application_party.
@@ -125,7 +180,7 @@ missing document — the app folds these onto the fields by that key.
 | Method | Path | Returns / rules |
 | --- | --- | --- |
 | GET | `/me` | `MemberProfile`: `kind`, `memberNo`, `status`, `joinedAt`, `membershipType`, `parties` (the approved application's `application_party` rows, or the imported record's equivalent for M7 legacy members), `pendingUpdate` (the open `member_details_request`, if any). An `applicant` gets `kind: 'applicant'` and empty parties. |
-| PUT | `/me/details` `{ parties }` | Creates a `member_details_request`. 422 on a mandatory field left blank or a phone that cannot be placed (`toInternational`); 409 if one is already pending; 403 for a non-member. The applicant's `mobile` is ignored if it differs from the session's — the sign-in number changes at a branch. Audit: `member.details.requested`. |
+| PUT | `/me/details` `{ parties }` | Creates a `member_details_request`. 422 on a mandatory field left blank or a phone that cannot be placed (`toInternational`); 409 if one is already pending; 403 for a non-member. The applicant's `mobile` is ignored if it differs from the session's — the registered number changes at a branch. Audit: `member.details.requested`. |
 | GET | `/me/accounts` | `AccountSummary[]` for `member_id` (or `customer_id`). `balance` is a decimal string, **null until the ledger exists** — today `transactionsForAccount` knows only the opening payment and any refund, so the balance is that sum, or null if the business would rather show nothing than a partial figure. |
 | GET | `/me/accounts/{id}/transactions` | `AccountTransaction[]`, oldest first, from `transactionsForAccount`. 404 unless the account belongs to the caller. |
 | GET | `/me/documents` | `FiledDocument[]` from `documentsForMember`: name, status, filed date, expiry. No download URL — `view-url` stays staff-only until a member-facing viewer is decided. |
@@ -165,7 +220,10 @@ is a small addition to the web application and outside this repository.
 
 ## Rate limits and abuse
 
-- `request-otp`: 3 per number per 10 minutes, 20 per IP per hour, regardless
+- `link-member`: 5 per NIC and per AB Number per hour, 20 per IP per hour,
+  counted whether or not the pair matched. This is the endpoint an
+  attacker with a stolen card would hit.
+- `sign-up`: 3 per number per 10 minutes, 20 per IP per hour, regardless
   of whether the number is known. SMS costs money and the endpoint is public.
 - `verify-otp`: 5 attempts per challenge, then it is dead.
 - Everything else inherits the existing fixed-window limiter, keyed on the
@@ -176,13 +234,15 @@ is a small addition to the web application and outside this repository.
 
 ## Sequence, if it is built in this order
 
-1. `member_login_challenge`, `member_session`, the two auth endpoints, a
-   member principal and `caller: 'member'` in `defineEndpoint`, `/reference`
-   and `/me`. The app's Home and My details work against test data.
+1. `member_login_challenge`, `member_session`, `link-member` / `verify-otp`
+   / `refresh` / `logout`, a member principal and `caller: 'member'` in
+   `defineEndpoint`, `/reference` and `/me`. The app's Home and My details
+   work against test data.
 2. `/me/accounts`, `/transactions`, `/me/documents`. The member area is
    complete.
-3. `applicant_mobile`, the `member-app` system user, the application
-   endpoints. Sign-up works end to end, into the existing workflow.
+3. `sign-up`, `applicant_mobile`, the `member-app` system user, the
+   application endpoints. Sign-up works end to end, into the existing
+   workflow.
 4. `member_details_request`, `PUT /me/details`, the verification queue on
    the Members page.
 5. Push or WhatsApp notification when an application's status changes

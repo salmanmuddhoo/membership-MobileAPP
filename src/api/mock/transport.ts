@@ -7,9 +7,10 @@
 // that works here should work there. Anything it does NOT enforce is called
 // out in a comment.
 //
-// Sign in with mobile 5789 1234 (an existing member, AB0001) or 5999 0000
-// (a person with no record — the sign-up path). The one-time code is
-// always 123456.
+// Link as the existing member with NIC P1503881234567 and AB Number AB0001
+// (the code goes to their registered mobile, 5789 1234). Start an
+// application with any mobile, e.g. 5999 0000. The one-time code is always
+// 123456.
 import { ApiError, type RequestOptions, type Transport } from '../client';
 import { toInternational, PhoneFormatError } from '../../lib/phone';
 import { missingFields } from '../../forms/validate';
@@ -33,6 +34,8 @@ const LATENCY_MS = 350;
 interface Person {
   id: string;
   mobile: string;
+  // Identification for linking: only a member has both.
+  nic: string | null;
   displayName: string;
   profile: MemberProfile;
   accounts: AccountSummary[];
@@ -42,8 +45,13 @@ interface Person {
 
 interface Challenge {
   id: string;
+  // The number the code went to. For link_member this is the member's
+  // registered mobile; the person never typed it.
   mobile: string;
-  purpose: 'sign_in' | 'sign_up';
+  purpose: 'link_member' | 'sign_up';
+  // Set for link_member: the record NIC + AB Number identified.
+  personId: string | null;
+  attempts: number;
   createdAt: number;
 }
 
@@ -55,12 +63,14 @@ interface Upload {
 }
 
 const iso = (d: Date) => d.toISOString();
+const masked = (mobile: string) => `${mobile.slice(0, 5)}xxx${mobile.slice(-3)}`;
 const daysAgo = (n: number) => iso(new Date(Date.now() - n * 86_400_000));
 
 function seedMember(): Person {
   return {
     id: 'person-ab0001',
     mobile: '+23057891234',
+    nic: 'P1503881234567',
     displayName: 'Fatimah Peerally',
     profile: {
       kind: 'member',
@@ -182,6 +192,7 @@ export function createMockTransport(): Transport {
 
   const challenges = new Map<string, Challenge>();
   const sessions = new Map<string, string>(); // accessToken -> mobile
+  const refreshTokens = new Map<string, string>(); // refreshToken -> mobile
   const applications = new Map<string, Application>();
   const applicantOf = new Map<string, string>(); // applicationId -> mobile
   const uploads = new Map<string, Upload>();
@@ -195,17 +206,23 @@ export function createMockTransport(): Transport {
     new ApiError(code, message, `mock::${Date.now().toString(36)}`, details ?? {}, null);
 
   function requireSession(options: RequestOptions): string {
-    const mobile = options.token ? sessions.get(options.token) : undefined;
-    if (!mobile) throw fail('unauthenticated', 'Sign in to continue.');
-    return mobile;
+    const subject = options.token ? sessions.get(options.token) : undefined;
+    if (!subject) throw fail('unauthenticated', 'Sign in to continue.');
+    return subject;
   }
 
   function personOrApplicant(mobile: string): Person {
     let person = people.get(mobile);
+    if (person && person.profile.kind !== 'applicant') {
+      // The number is on a member's record; a sign-up with it gets its own
+      // applicant persona (see personForSubject), never the member.
+      return personForSubject(`applicant:${mobile}`);
+    }
     if (!person) {
       person = {
         id: nextId('person'),
         mobile,
+        nic: null,
         displayName: 'Applicant',
         profile: {
           kind: 'applicant',
@@ -225,20 +242,59 @@ export function createMockTransport(): Transport {
     return person;
   }
 
-  function session(person: Person): Session {
+  // The identity a session carries is the person's — for a link_member
+  // challenge, the member the NIC + AB Number named; for sign_up, an
+  // applicant identified only by the verified mobile, even if that same
+  // number is on some member's record. Member access comes only through
+  // linking.
+  function session(person: Person, asApplicant = false): Session {
     const accessToken = nextId('access');
-    sessions.set(accessToken, person.mobile);
+    const refreshToken = nextId('refresh');
+    sessions.set(accessToken, asApplicant ? `applicant:${person.mobile}` : person.mobile);
+    refreshTokens.set(refreshToken, asApplicant ? `applicant:${person.mobile}` : person.mobile);
+    const applicant = asApplicant || person.profile.kind === 'applicant';
     return {
       accessToken,
-      refreshToken: nextId('refresh'),
+      refreshToken,
       expiresInSeconds: 3600,
       identity: {
-        kind: person.profile.kind,
-        memberNo: person.profile.memberNo,
-        displayName: person.displayName,
+        kind: applicant ? 'applicant' : person.profile.kind,
+        memberNo: applicant ? null : person.profile.memberNo,
+        displayName: applicant ? 'Applicant' : person.displayName,
         mobile: person.mobile,
+        linkedAt: iso(new Date()),
       },
     };
+  }
+
+  // A session subject is either a member's mobile or `applicant:<mobile>`.
+  // Both resolve to a Person; an applicant subject never resolves to a
+  // member's record even when the mobile matches one.
+  function personForSubject(subject: string): Person {
+    if (subject.startsWith('applicant:')) {
+      const mobile = subject.slice('applicant:'.length);
+      const existing = people.get(mobile);
+      if (existing && existing.profile.kind === 'applicant') return existing;
+      // A member's number used to start an application: a separate
+      // applicant persona, keyed so it never collides with the member.
+      const key = `applicant:${mobile}`;
+      let persona = people.get(key);
+      if (!persona) {
+        persona = {
+          id: nextId('person'),
+          mobile,
+          nic: null,
+          displayName: 'Applicant',
+          profile: { kind: 'applicant', memberNo: null, status: 'none', joinedAt: null, membershipType: null, parties: [], pendingUpdate: null },
+          accounts: [],
+          transactions: {},
+          documents: [],
+        };
+        people.set(key, persona);
+      }
+      return persona;
+    }
+    return people.get(subject)!;
   }
 
   function typeByCode(code: string): MembershipType {
@@ -317,24 +373,57 @@ export function createMockTransport(): Transport {
     },
     {
       method: 'POST',
-      pattern: /^\/api\/v1\/member\/auth\/request-otp$/,
+      pattern: /^\/api\/v1\/member\/auth\/link-member$/,
+      handle: (_, body) => {
+        const nic = String(body?.nic ?? '').trim().toUpperCase();
+        const abNumber = String(body?.abNumber ?? '').trim().toUpperCase().replace(/\s+/g, '');
+        const details: Record<string, string[]> = {};
+        if (!/^[A-Z]\d{12}[A-Z0-9]$/.test(nic)) details.nic = ['Enter the NIC exactly as on the card, e.g. A0101801234567.'];
+        if (!/^AB\d{4,}$/.test(abNumber)) details.abNumber = ['Enter the AB Number as on your card, e.g. AB0001.'];
+        if (Object.keys(details).length > 0) {
+          throw fail('validation_failed', 'Check the details.', details);
+        }
+        // The only lookup the mobile app gets: an exact pair, active members
+        // only. Not the staff existing-member-search, which matches on a
+        // fragment of a name.
+        const person = [...people.values()].find(
+          p => p.profile.kind === 'member' && p.profile.status === 'active' && p.nic === nic && p.profile.memberNo === abNumber
+        );
+        if (!person) {
+          throw fail('not_found', 'No active member matches that NIC and AB Number. Check both, or visit a branch.');
+        }
+        const id = nextId('otp');
+        challenges.set(id, { id, mobile: person.mobile, purpose: 'link_member', personId: person.id, attempts: 0, createdAt: Date.now() });
+        return { challengeId: id, purpose: 'link_member', sentTo: masked(person.mobile), expiresInSeconds: 300 };
+      },
+    },
+    {
+      method: 'POST',
+      pattern: /^\/api\/v1\/member\/auth\/sign-up$/,
       handle: (_, body) => {
         let mobile: string;
         try {
           mobile = toInternational(String(body?.mobile ?? ''));
         } catch (e) {
-          throw fail('validation_failed', 'Check the mobile number.', {
-            mobile: [(e as Error).message],
-          });
+          throw fail('validation_failed', 'Check the mobile number.', { mobile: [(e as Error).message] });
         }
-        const purpose = body?.purpose === 'sign_up' ? 'sign_up' : 'sign_in';
-        // Not enforced here, deliberately: the real backend decides whether a
-        // number with no record may sign in at all. The mock lets anyone in
-        // so the sign-up path can be exercised from either door.
+        // Always issued, whether or not the number is on some record: this
+        // path only ever produces an applicant session.
         const id = nextId('otp');
-        challenges.set(id, { id, mobile, purpose, createdAt: Date.now() });
-        const masked = `${mobile.slice(0, 5)}xxx${mobile.slice(-3)}`;
-        return { challengeId: id, sentTo: masked, expiresInSeconds: 300 };
+        challenges.set(id, { id, mobile, purpose: 'sign_up', personId: null, attempts: 0, createdAt: Date.now() });
+        return { challengeId: id, purpose: 'sign_up', sentTo: masked(mobile), expiresInSeconds: 300 };
+      },
+    },
+    {
+      method: 'POST',
+      pattern: /^\/api\/v1\/member\/auth\/resend-otp$/,
+      handle: (_, body) => {
+        const previous = challenges.get(String(body?.challengeId ?? ''));
+        if (!previous) throw fail('not_found', 'Start again.');
+        challenges.delete(previous.id);
+        const id = nextId('otp');
+        challenges.set(id, { ...previous, id, attempts: 0, createdAt: Date.now() });
+        return { challengeId: id, purpose: previous.purpose, sentTo: masked(previous.mobile), expiresInSeconds: 300 };
       },
     },
     {
@@ -346,42 +435,57 @@ export function createMockTransport(): Transport {
           throw fail('not_found', 'That code has expired. Request a new one.');
         }
         if (String(body?.code ?? '') !== OTP) {
+          challenge.attempts += 1;
+          if (challenge.attempts >= 5) {
+            challenges.delete(challenge.id);
+            throw fail('not_found', 'Too many wrong codes. Start again.');
+          }
           throw fail('validation_failed', 'That code is not right.', {
             code: ['Enter the 6-digit code that was sent to you.'],
           });
         }
         challenges.delete(challenge.id);
-        return session(personOrApplicant(challenge.mobile));
+        if (challenge.purpose === 'link_member') {
+          const person = [...people.values()].find(p => p.id === challenge.personId);
+          if (!person) throw fail('not_found', 'That member record is no longer available.');
+          // This is the link: the device's identity is now the member's.
+          return session(person);
+        }
+        return session(personOrApplicant(challenge.mobile), true);
       },
     },
     {
       method: 'POST',
       pattern: /^\/api\/v1\/member\/auth\/refresh$/,
       handle: (_, body) => {
-        // Refresh tokens are not tracked by the mock; any string refreshes
-        // the first member. Fine for a demo, not a model for the backend.
-        void body;
-        return session(member);
+        const token = String(body?.refreshToken ?? '');
+        const subject = refreshTokens.get(token);
+        if (!subject) throw fail('unauthenticated', 'Sign in again.');
+        // Rotated: the old one is dead the moment it is used.
+        refreshTokens.delete(token);
+        const person = personForSubject(subject);
+        return session(person, subject.startsWith('applicant:'));
       },
     },
     {
       method: 'POST',
       pattern: /^\/api\/v1\/member\/auth\/logout$/,
-      handle: (_, __, options) => {
+      handle: (_, body, options) => {
         if (options.token) sessions.delete(options.token);
+        if (body?.refreshToken) refreshTokens.delete(String(body.refreshToken));
         return { ok: true };
       },
     },
     {
       method: 'GET',
       pattern: /^\/api\/v1\/member\/me$/,
-      handle: (_, __, options) => people.get(requireSession(options))!.profile,
+      handle: (_, __, options) => personForSubject(requireSession(options)).profile,
     },
     {
       method: 'PUT',
       pattern: /^\/api\/v1\/member\/me\/details$/,
       handle: (_, body, options) => {
-        const person = people.get(requireSession(options))!;
+        const person = personForSubject(requireSession(options));
         if (person.profile.kind !== 'member' || !person.profile.membershipType) {
           throw fail('forbidden', 'Only a member can update member details.');
         }
@@ -417,13 +521,13 @@ export function createMockTransport(): Transport {
     {
       method: 'GET',
       pattern: /^\/api\/v1\/member\/me\/accounts$/,
-      handle: (_, __, options) => people.get(requireSession(options))!.accounts,
+      handle: (_, __, options) => personForSubject(requireSession(options)).accounts,
     },
     {
       method: 'GET',
       pattern: /^\/api\/v1\/member\/me\/accounts\/([^/]+)\/transactions$/,
       handle: ([, id], __, options) => {
-        const person = people.get(requireSession(options))!;
+        const person = personForSubject(requireSession(options));
         if (!person.accounts.some(a => a.id === id)) {
           throw fail('not_found', 'No such account.');
         }
@@ -433,7 +537,7 @@ export function createMockTransport(): Transport {
     {
       method: 'GET',
       pattern: /^\/api\/v1\/member\/me\/documents$/,
-      handle: (_, __, options) => people.get(requireSession(options))!.documents,
+      handle: (_, __, options) => personForSubject(requireSession(options)).documents,
     },
     {
       method: 'GET',
@@ -449,10 +553,11 @@ export function createMockTransport(): Transport {
       method: 'POST',
       pattern: /^\/api\/v1\/member\/applications$/,
       handle: (_, body, options) => {
-        const mobile = requireSession(options);
+        const subject = requireSession(options);
+        const mobile = personForSubject(subject).mobile;
         const type = typeByCode(String(body?.membershipTypeCode ?? ''));
         const open = [...applications.values()].find(
-          a => applicantOf.get(a.id) === mobile && !['approved', 'rejected'].includes(a.status)
+          a => applicantOf.get(a.id) === subject && !['approved', 'rejected'].includes(a.status)
         );
         if (open) {
           throw fail('conflict', `You already have an application in progress (${open.reference}).`);
@@ -480,7 +585,7 @@ export function createMockTransport(): Transport {
           applicant.values.mobile = mobile;
         }
         applications.set(id, app);
-        applicantOf.set(id, mobile);
+        applicantOf.set(id, subject);
         return app;
       },
     },
