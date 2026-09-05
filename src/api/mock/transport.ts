@@ -1,0 +1,637 @@
+// An in-memory backend implementing docs/member-api.md.
+//
+// It exists so the app can be run, demonstrated and tested before the
+// member endpoints exist on the web application. It enforces the same rules
+// the real one will — mandatory fields at submit, phone numbers in
+// international form, a document per required checklist item — so a flow
+// that works here should work there. Anything it does NOT enforce is called
+// out in a comment.
+//
+// Sign in with mobile 5789 1234 (an existing member, AB0001) or 5999 0000
+// (a person with no record — the sign-up path). The one-time code is
+// always 123456.
+import { ApiError, type RequestOptions, type Transport } from '../client';
+import { toInternational, PhoneFormatError } from '../../lib/phone';
+import { missingFields } from '../../forms/validate';
+import type {
+  AccountSummary,
+  AccountTransaction,
+  Application,
+  ApplicationDocument,
+  ChangeRequest,
+  FiledDocument,
+  MemberProfile,
+  MembershipType,
+  PartyValues,
+  Session,
+} from '../types';
+import { MEMBERSHIP_TYPES } from './reference';
+
+const OTP = '123456';
+const LATENCY_MS = 350;
+
+interface Person {
+  id: string;
+  mobile: string;
+  displayName: string;
+  profile: MemberProfile;
+  accounts: AccountSummary[];
+  transactions: Record<string, AccountTransaction[]>;
+  documents: FiledDocument[];
+}
+
+interface Challenge {
+  id: string;
+  mobile: string;
+  purpose: 'sign_in' | 'sign_up';
+  createdAt: number;
+}
+
+interface Upload {
+  id: string;
+  applicationId: string;
+  checklistItemId: string;
+  fileName: string;
+}
+
+const iso = (d: Date) => d.toISOString();
+const daysAgo = (n: number) => iso(new Date(Date.now() - n * 86_400_000));
+
+function seedMember(): Person {
+  return {
+    id: 'person-ab0001',
+    mobile: '+23057891234',
+    displayName: 'Fatimah Peerally',
+    profile: {
+      kind: 'member',
+      memberNo: 'AB0001',
+      status: 'active',
+      joinedAt: daysAgo(400),
+      membershipType: { code: 'individual', name: 'Individual' },
+      pendingUpdate: null,
+      parties: [
+        {
+          subject: 'applicant',
+          ordinal: 1,
+          values: {
+            surname: 'Peerally',
+            name: 'Fatimah',
+            nic: 'P1503881234567',
+            gender: 'Female',
+            marital_status: 'Married',
+            address: '12 Royal Road, Rose Hill',
+            mobile: '+23057891234',
+            email: 'fatimah@example.mu',
+          },
+        },
+        {
+          subject: 'employment',
+          ordinal: 1,
+          values: { employer_name: '', occupation: '', employment_status: '', monthly_income: '' },
+        },
+        {
+          subject: 'nominee',
+          ordinal: 1,
+          values: {
+            surname: 'Peerally',
+            name: 'Ismail',
+            nic: 'P1201791234567',
+            address: '12 Royal Road, Rose Hill',
+            mobile: '+23059876543',
+          },
+        },
+      ],
+    },
+    accounts: [
+      {
+        id: 'acc-shares',
+        accountNo: 'SH-000001',
+        typeCode: 'shares',
+        typeName: 'Shares',
+        category: 'shares',
+        status: 'active',
+        openedAt: daysAgo(400),
+        balance: '500.00',
+      },
+      {
+        id: 'acc-msa',
+        accountNo: 'MSA-000001',
+        typeCode: 'msa',
+        typeName: 'Multiplier Savings Account',
+        category: 'savings',
+        status: 'active',
+        openedAt: daysAgo(400),
+        balance: '5000.00',
+      },
+    ],
+    transactions: {
+      'acc-shares': [
+        {
+          id: 't1',
+          occurredAt: daysAgo(400),
+          direction: 'credit',
+          amount: '500.00',
+          description: 'Share capital on admission',
+          receiptNo: 'RCT-2025-000014',
+        },
+      ],
+      'acc-msa': [
+        {
+          id: 't2',
+          occurredAt: daysAgo(400),
+          direction: 'credit',
+          amount: '5000.00',
+          description: 'Opening deposit',
+          receiptNo: 'RCT-2025-000014',
+        },
+      ],
+    },
+    documents: [
+      {
+        id: 'd1',
+        documentCode: 'id_card',
+        documentName: 'National identity card',
+        status: 'verified',
+        filedAt: daysAgo(401),
+        expiresAt: null,
+      },
+      {
+        id: 'd2',
+        documentCode: 'utility_bill',
+        documentName: 'Proof of address (utility bill)',
+        status: 'verified',
+        filedAt: daysAgo(401),
+        expiresAt: daysAgo(-40),
+      },
+      {
+        id: 'd3',
+        documentCode: 'signed_form',
+        documentName: 'Signed application form',
+        status: 'verified',
+        filedAt: daysAgo(399),
+        expiresAt: null,
+      },
+    ],
+  };
+}
+
+export function createMockTransport(): Transport {
+  const people = new Map<string, Person>();
+  const member = seedMember();
+  people.set(member.mobile, member);
+
+  const challenges = new Map<string, Challenge>();
+  const sessions = new Map<string, string>(); // accessToken -> mobile
+  const applications = new Map<string, Application>();
+  const applicantOf = new Map<string, string>(); // applicationId -> mobile
+  const uploads = new Map<string, Upload>();
+  const changeRequests: ChangeRequest[] = [];
+  let sequence = 100;
+
+  const nextId = (prefix: string) => `${prefix}-${++sequence}`;
+  const reference = () => `APP-${new Date().getFullYear()}-${String(sequence).padStart(6, '0')}`;
+
+  const fail = (code: ApiError['code'], message: string, details?: Record<string, string[]>) =>
+    new ApiError(code, message, `mock::${Date.now().toString(36)}`, details ?? {}, null);
+
+  function requireSession(options: RequestOptions): string {
+    const mobile = options.token ? sessions.get(options.token) : undefined;
+    if (!mobile) throw fail('unauthenticated', 'Sign in to continue.');
+    return mobile;
+  }
+
+  function personOrApplicant(mobile: string): Person {
+    let person = people.get(mobile);
+    if (!person) {
+      person = {
+        id: nextId('person'),
+        mobile,
+        displayName: 'Applicant',
+        profile: {
+          kind: 'applicant',
+          memberNo: null,
+          status: 'none',
+          joinedAt: null,
+          membershipType: null,
+          parties: [],
+          pendingUpdate: null,
+        },
+        accounts: [],
+        transactions: {},
+        documents: [],
+      };
+      people.set(mobile, person);
+    }
+    return person;
+  }
+
+  function session(person: Person): Session {
+    const accessToken = nextId('access');
+    sessions.set(accessToken, person.mobile);
+    return {
+      accessToken,
+      refreshToken: nextId('refresh'),
+      expiresInSeconds: 3600,
+      identity: {
+        kind: person.profile.kind,
+        memberNo: person.profile.memberNo,
+        displayName: person.displayName,
+        mobile: person.mobile,
+      },
+    };
+  }
+
+  function typeByCode(code: string): MembershipType {
+    const type = MEMBERSHIP_TYPES.find(t => t.code === code);
+    if (!type) throw fail('not_found', 'Unknown membership type.');
+    return type;
+  }
+
+  function emptyParties(type: MembershipType): PartyValues[] {
+    const subjects = [...new Set(type.fields.map(f => f.subject))];
+    const parties: PartyValues[] = [];
+    for (const subject of subjects) {
+      const count = subject === 'nominee' ? type.nomineeCount : 1;
+      for (let ordinal = 1; ordinal <= count; ordinal++) {
+        parties.push({ subject, ordinal, values: {} });
+      }
+    }
+    return parties;
+  }
+
+  function emptyDocuments(type: MembershipType): ApplicationDocument[] {
+    return type.checklist.map(item => ({
+      checklistItemId: item.id,
+      documentCode: item.documentCode,
+      documentName: item.documentName,
+      requirement: item.requirement,
+      status: 'missing',
+      fileName: null,
+      rejectionReason: null,
+    }));
+  }
+
+  function ownApplication(mobile: string, id: string): Application {
+    const app = applications.get(id);
+    if (!app || applicantOf.get(id) !== mobile) {
+      throw fail('not_found', 'That application no longer exists.');
+    }
+    return app;
+  }
+
+  // Store phone fields in international form, refusing what cannot be
+  // placed — the same rule as the web application's capture.
+  function normalisePhones(type: MembershipType, parties: PartyValues[]) {
+    const details: Record<string, string[]> = {};
+    const out = parties.map(party => {
+      const values = { ...party.values };
+      for (const field of type.fields) {
+        if (field.subject !== party.subject || field.dataType !== 'phone') continue;
+        const raw = values[field.fieldKey];
+        if (!raw || raw.trim() === '') continue;
+        try {
+          values[field.fieldKey] = toInternational(raw);
+        } catch (e) {
+          if (e instanceof PhoneFormatError) {
+            details[`${party.subject}.${party.ordinal}.${field.fieldKey}`] = [e.message];
+          } else throw e;
+        }
+      }
+      return { ...party, values };
+    });
+    if (Object.keys(details).length > 0) {
+      throw fail('validation_failed', 'Some details need attention.', details);
+    }
+    return out;
+  }
+
+  const routes: {
+    method: string;
+    pattern: RegExp;
+    handle: (m: string[], body: any, options: RequestOptions) => unknown;
+  }[] = [
+    {
+      method: 'GET',
+      pattern: /^\/api\/v1\/member\/reference$/,
+      handle: () => ({ membershipTypes: MEMBERSHIP_TYPES.filter(t => t.isActive) }),
+    },
+    {
+      method: 'POST',
+      pattern: /^\/api\/v1\/member\/auth\/request-otp$/,
+      handle: (_, body) => {
+        let mobile: string;
+        try {
+          mobile = toInternational(String(body?.mobile ?? ''));
+        } catch (e) {
+          throw fail('validation_failed', 'Check the mobile number.', {
+            mobile: [(e as Error).message],
+          });
+        }
+        const purpose = body?.purpose === 'sign_up' ? 'sign_up' : 'sign_in';
+        // Not enforced here, deliberately: the real backend decides whether a
+        // number with no record may sign in at all. The mock lets anyone in
+        // so the sign-up path can be exercised from either door.
+        const id = nextId('otp');
+        challenges.set(id, { id, mobile, purpose, createdAt: Date.now() });
+        const masked = `${mobile.slice(0, 5)}xxx${mobile.slice(-3)}`;
+        return { challengeId: id, sentTo: masked, expiresInSeconds: 300 };
+      },
+    },
+    {
+      method: 'POST',
+      pattern: /^\/api\/v1\/member\/auth\/verify-otp$/,
+      handle: (_, body) => {
+        const challenge = challenges.get(String(body?.challengeId ?? ''));
+        if (!challenge || Date.now() - challenge.createdAt > 300_000) {
+          throw fail('not_found', 'That code has expired. Request a new one.');
+        }
+        if (String(body?.code ?? '') !== OTP) {
+          throw fail('validation_failed', 'That code is not right.', {
+            code: ['Enter the 6-digit code that was sent to you.'],
+          });
+        }
+        challenges.delete(challenge.id);
+        return session(personOrApplicant(challenge.mobile));
+      },
+    },
+    {
+      method: 'POST',
+      pattern: /^\/api\/v1\/member\/auth\/refresh$/,
+      handle: (_, body) => {
+        // Refresh tokens are not tracked by the mock; any string refreshes
+        // the first member. Fine for a demo, not a model for the backend.
+        void body;
+        return session(member);
+      },
+    },
+    {
+      method: 'POST',
+      pattern: /^\/api\/v1\/member\/auth\/logout$/,
+      handle: (_, __, options) => {
+        if (options.token) sessions.delete(options.token);
+        return { ok: true };
+      },
+    },
+    {
+      method: 'GET',
+      pattern: /^\/api\/v1\/member\/me$/,
+      handle: (_, __, options) => people.get(requireSession(options))!.profile,
+    },
+    {
+      method: 'PUT',
+      pattern: /^\/api\/v1\/member\/me\/details$/,
+      handle: (_, body, options) => {
+        const person = people.get(requireSession(options))!;
+        if (person.profile.kind !== 'member' || !person.profile.membershipType) {
+          throw fail('forbidden', 'Only a member can update member details.');
+        }
+        const type = typeByCode(person.profile.membershipType.code);
+        const parties = normalisePhones(type, body?.parties ?? []);
+        const missing = missingFields(type, parties);
+        if (missing.length > 0) {
+          throw fail(
+            'validation_failed',
+            'Some required details are missing.',
+            Object.fromEntries(
+              missing.map(m => [`${m.subject}.${m.ordinal}.${m.fieldKey}`, [`${m.label} is required.`]])
+            )
+          );
+        }
+        const request: ChangeRequest = {
+          id: nextId('change'),
+          status: 'pending',
+          submittedAt: iso(new Date()),
+        };
+        changeRequests.push(request);
+        // The record itself does not change until staff verify the request;
+        // the profile only shows that one is pending. The mock applies the
+        // values immediately after that so the demo shows the result.
+        person.profile = {
+          ...person.profile,
+          parties,
+          pendingUpdate: { id: request.id, submittedAt: request.submittedAt },
+        };
+        return request;
+      },
+    },
+    {
+      method: 'GET',
+      pattern: /^\/api\/v1\/member\/me\/accounts$/,
+      handle: (_, __, options) => people.get(requireSession(options))!.accounts,
+    },
+    {
+      method: 'GET',
+      pattern: /^\/api\/v1\/member\/me\/accounts\/([^/]+)\/transactions$/,
+      handle: ([, id], __, options) => {
+        const person = people.get(requireSession(options))!;
+        if (!person.accounts.some(a => a.id === id)) {
+          throw fail('not_found', 'No such account.');
+        }
+        return person.transactions[id] ?? [];
+      },
+    },
+    {
+      method: 'GET',
+      pattern: /^\/api\/v1\/member\/me\/documents$/,
+      handle: (_, __, options) => people.get(requireSession(options))!.documents,
+    },
+    {
+      method: 'GET',
+      pattern: /^\/api\/v1\/member\/applications$/,
+      handle: (_, __, options) => {
+        const mobile = requireSession(options);
+        return [...applications.values()]
+          .filter(a => applicantOf.get(a.id) === mobile)
+          .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+      },
+    },
+    {
+      method: 'POST',
+      pattern: /^\/api\/v1\/member\/applications$/,
+      handle: (_, body, options) => {
+        const mobile = requireSession(options);
+        const type = typeByCode(String(body?.membershipTypeCode ?? ''));
+        const open = [...applications.values()].find(
+          a => applicantOf.get(a.id) === mobile && !['approved', 'rejected'].includes(a.status)
+        );
+        if (open) {
+          throw fail('conflict', `You already have an application in progress (${open.reference}).`);
+        }
+        const now = iso(new Date());
+        const id = nextId('app');
+        const app: Application = {
+          id,
+          reference: reference(),
+          status: 'draft',
+          membershipTypeCode: type.code,
+          membershipTypeName: type.name,
+          parties: emptyParties(type),
+          documents: emptyDocuments(type),
+          submittedAt: null,
+          decidedAt: null,
+          updatedAt: now,
+          returnComment: null,
+          timeline: [{ at: now, label: 'Started', comment: null }],
+        };
+        // Pre-fill the applicant's mobile: it is the number they signed in
+        // with, and the number the real backend will already have verified.
+        const applicant = app.parties.find(p => p.subject === 'applicant');
+        if (applicant && type.fields.some(f => f.subject === 'applicant' && f.fieldKey === 'mobile')) {
+          applicant.values.mobile = mobile;
+        }
+        applications.set(id, app);
+        applicantOf.set(id, mobile);
+        return app;
+      },
+    },
+    {
+      method: 'GET',
+      pattern: /^\/api\/v1\/member\/applications\/([^/]+)$/,
+      handle: ([, id], __, options) => ownApplication(requireSession(options), id),
+    },
+    {
+      method: 'DELETE',
+      pattern: /^\/api\/v1\/member\/applications\/([^/]+)$/,
+      handle: ([, id], __, options) => {
+        const app = ownApplication(requireSession(options), id);
+        if (app.status !== 'draft') {
+          throw fail('conflict', 'Only a draft can be deleted.');
+        }
+        applications.delete(id);
+        return { ok: true };
+      },
+    },
+    {
+      method: 'PUT',
+      pattern: /^\/api\/v1\/member\/applications\/([^/]+)\/parties$/,
+      handle: ([, id], body, options) => {
+        const app = ownApplication(requireSession(options), id);
+        if (!['draft', 'returned'].includes(app.status)) {
+          throw fail('conflict', 'This application has been submitted and can no longer be changed.');
+        }
+        const type = typeByCode(app.membershipTypeCode);
+        // A draft save keeps whatever was typed — phones are checked at
+        // submit, so a half-typed number never blocks saving (S-302).
+        const incoming: PartyValues[] = body?.parties ?? [];
+        app.parties = app.parties.map(existing => {
+          const match = incoming.find(
+            p => p.subject === existing.subject && p.ordinal === existing.ordinal
+          );
+          if (!match) return existing;
+          const allowed = new Set(
+            type.fields.filter(f => f.subject === existing.subject).map(f => f.fieldKey)
+          );
+          const values: Record<string, string> = {};
+          for (const [k, v] of Object.entries(match.values ?? {})) {
+            if (allowed.has(k)) values[k] = String(v ?? '');
+          }
+          return { ...existing, values };
+        });
+        app.updatedAt = iso(new Date());
+        return app;
+      },
+    },
+    {
+      method: 'POST',
+      pattern: /^\/api\/v1\/member\/applications\/([^/]+)\/documents\/begin-upload$/,
+      handle: ([, id], body, options) => {
+        const app = ownApplication(requireSession(options), id);
+        const doc = app.documents.find(d => d.checklistItemId === body?.checklistItemId);
+        if (!doc) throw fail('not_found', 'That document is not on this checklist.');
+        const size = Number(body?.sizeBytes ?? 0);
+        if (size > 25 * 1024 * 1024) {
+          throw fail('validation_failed', 'That file is too large. The limit is 25 MB.', {
+            sizeBytes: ['Up to 25 MB.'],
+          });
+        }
+        const accepted = ['image/jpeg', 'image/png', 'image/heic', 'application/pdf'];
+        if (!accepted.includes(String(body?.contentType ?? ''))) {
+          throw fail('validation_failed', 'Use a photo (JPEG, PNG, HEIC) or a PDF.', {
+            contentType: ['JPEG, PNG, HEIC or PDF.'],
+          });
+        }
+        const uploadId = nextId('upload');
+        uploads.set(uploadId, {
+          id: uploadId,
+          applicationId: id,
+          checklistItemId: doc.checklistItemId,
+          fileName: String(body?.fileName ?? 'document'),
+        });
+        doc.status = 'pending';
+        return {
+          uploadId,
+          uploadUrl: `mock://upload/${uploadId}`,
+          expiresAt: iso(new Date(Date.now() + 3_600_000)),
+          maxBytes: 25 * 1024 * 1024,
+          acceptedTypes: accepted,
+        };
+      },
+    },
+    {
+      method: 'POST',
+      pattern: /^\/api\/v1\/member\/applications\/([^/]+)\/documents\/commit-upload$/,
+      handle: ([, id], body, options) => {
+        const app = ownApplication(requireSession(options), id);
+        const upload = uploads.get(String(body?.uploadId ?? ''));
+        if (!upload || upload.applicationId !== id) {
+          throw fail('not_found', 'That upload was not started here.');
+        }
+        const doc = app.documents.find(d => d.checklistItemId === upload.checklistItemId)!;
+        doc.status = 'filed';
+        doc.fileName = upload.fileName;
+        doc.rejectionReason = null;
+        uploads.delete(upload.id);
+        app.updatedAt = iso(new Date());
+        return app;
+      },
+    },
+    {
+      method: 'POST',
+      pattern: /^\/api\/v1\/member\/applications\/([^/]+)\/submit$/,
+      handle: ([, id], __, options) => {
+        const app = ownApplication(requireSession(options), id);
+        if (!['draft', 'returned'].includes(app.status)) {
+          throw fail('conflict', 'This application has already been submitted.');
+        }
+        const type = typeByCode(app.membershipTypeCode);
+        const parties = normalisePhones(type, app.parties);
+        const details: Record<string, string[]> = {};
+        for (const m of missingFields(type, parties)) {
+          details[`${m.subject}.${m.ordinal}.${m.fieldKey}`] = [`${m.label} is required.`];
+        }
+        for (const doc of app.documents) {
+          if (doc.requirement === 'required' && !['filed', 'verified'].includes(doc.status)) {
+            details[`document.${doc.documentCode}`] = [`${doc.documentName} is required.`];
+          }
+        }
+        if (Object.keys(details).length > 0) {
+          throw fail('validation_failed', 'Some details are missing.', details);
+        }
+        const now = iso(new Date());
+        app.parties = parties;
+        app.status = 'new';
+        app.submittedAt = now;
+        app.updatedAt = now;
+        app.returnComment = null;
+        app.timeline.push({ at: now, label: 'Submitted', comment: null });
+        return app;
+      },
+    },
+  ];
+
+  return {
+    async request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+      await new Promise(r => setTimeout(r, LATENCY_MS));
+      const method = options.method ?? 'GET';
+      const url = path.split('?')[0];
+      for (const route of routes) {
+        const m = url.match(route.pattern);
+        if (m && route.method === method) {
+          // Deep-copy so a screen never mutates the "database".
+          return JSON.parse(JSON.stringify(route.handle(m, options.body, options))) as T;
+        }
+      }
+      throw fail('not_found', `No such endpoint: ${method} ${url}`);
+    },
+  };
+}
