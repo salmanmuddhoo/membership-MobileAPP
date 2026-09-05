@@ -25,7 +25,10 @@ else
   echo "::warning::No ANDROID_KEYSTORE_BASE64 secret: signed with a throwaway key. Uninstall the previous build before installing this one."
 fi
 
+# The template's gradle.properties does not end with a newline; start on a
+# fresh line so the first property is not glued to the last existing one.
 {
+  echo
   echo "ALBARAKAH_STORE_FILE=release.keystore"
   echo "ALBARAKAH_STORE_PASSWORD=$KEYSTORE_PASSWORD"
   echo "ALBARAKAH_KEY_ALIAS=$KEY_ALIAS"
