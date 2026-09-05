@@ -54,53 +54,20 @@ jobs:
       # Without them a throwaway key is generated for this run: the APK still
       # installs, but the next build will not update it in place — uninstall
       # first.
+      # A release APK must be signed. With ANDROID_KEYSTORE_BASE64 (and the
+      # three passwords) set as repository secrets, every build is signed with
+      # the same key, so a newer APK installs over an older one as an update.
+      # Without them a throwaway key is generated for this run: the APK still
+      # installs, but the next build will not update it in place — uninstall
+      # first. The work is in scripts/android-signing.sh so it can be run and
+      # read on its own.
       - name: Prepare the signing key
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: |
-          set -euo pipefail
-          if [ -n "$KEYSTORE_BASE64" ]; then
-            echo "$KEYSTORE_BASE64" | base64 -d > android/app/release.keystore
-            echo "Using the repository's signing key."
-          else
-            KEYSTORE_PASSWORD=throwaway; KEY_ALIAS=throwaway; KEY_PASSWORD=throwaway
-            keytool -genkeypair -v -keystore android/app/release.keystore \
-              -alias throwaway -keyalg RSA -keysize 2048 -validity 3650 \
-              -storepass throwaway -keypass throwaway \
-              -dname "CN=Al Barakah preview, O=Al Barakah MCSL, C=MU"
-            echo "::warning::No ANDROID_KEYSTORE_BASE64 secret: signed with a throwaway key. Uninstall the previous build before installing this one."
-          fi
-          cat >> android/gradle.properties <<EOP
-          ALBARAKAH_STORE_FILE=release.keystore
-          ALBARAKAH_STORE_PASSWORD=$KEYSTORE_PASSWORD
-          ALBARAKAH_KEY_ALIAS=$KEY_ALIAS
-          ALBARAKAH_KEY_PASSWORD=$KEY_PASSWORD
-          EOP
-          # Point the generated project's release signing at that key.
-          python3 - <<'PY'
-          import re
-          p = 'android/app/build.gradle'
-          s = open(p).read()
-          s = s.replace("""        release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug""", """        release {
-            signingConfig signingConfigs.release""")
-          s = s.replace("""    signingConfigs {
-        debug {""", """    signingConfigs {
-        release {
-            storeFile file(ALBARAKAH_STORE_FILE)
-            storePassword ALBARAKAH_STORE_PASSWORD
-            keyAlias ALBARAKAH_KEY_ALIAS
-            keyPassword ALBARAKAH_KEY_PASSWORD
-        }
-        debug {""")
-          open(p, 'w').write(s)
-          PY
-          grep -n "signingConfigs.release" android/app/build.gradle
+        run: bash scripts/android-signing.sh
 
       - name: Build the release APK
         working-directory: android
