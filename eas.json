@@ -1,0 +1,23 @@
+{
+  "cli": { "version": ">= 16.0.0", "appVersionSource": "remote" },
+  "build": {
+    "preview": {
+      "distribution": "internal",
+      "android": { "buildType": "apk" },
+      "env": { "EXPO_PUBLIC_API_MODE": "mock" }
+    },
+    "test": {
+      "distribution": "internal",
+      "android": { "buildType": "apk" },
+      "env": {
+        "EXPO_PUBLIC_API_MODE": "live",
+        "EXPO_PUBLIC_API_URL": "https://membership-git-main-salmans-projects-bf24bdbe.vercel.app"
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "env": { "EXPO_PUBLIC_API_MODE": "live", "EXPO_PUBLIC_API_URL": "https://www.albarakah.mu" }
+    }
+  },
+  "submit": { "production": {} }
+}

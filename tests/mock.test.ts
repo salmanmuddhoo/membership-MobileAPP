@@ -23,23 +23,28 @@ test('NIC + AB Number identify the member; the code goes to the number on record
   const api = memberApi(createMockTransport());
   const challenge = await api.linkMember({ nic: 'P1503881234567', abNumber: 'AB0001' });
   assert.equal(challenge.purpose, 'link_member');
-  assert.equal(challenge.sentTo, '+2305xxx234');
+  // Never a number, masked or not: the answer must not say the pair matched.
+  assert.equal(challenge.sentTo, null);
   const session = await api.verifyOtp(challenge.challengeId, '123456');
   assert.equal(session.identity.kind, 'member');
   assert.equal(session.identity.memberNo, 'AB0001');
   assert.equal(session.identity.mobile, '+23057891234');
 });
 
-test('a NIC and AB Number that do not belong to one active member open nothing', async () => {
+test('a NIC and AB Number that do not belong to one active member get the same answer, and open nothing', async () => {
   const api = memberApi(createMockTransport());
-  await assert.rejects(api.linkMember({ nic: 'P1503881234567', abNumber: 'AB0002' }), (e: unknown) => {
-    assert.ok(e instanceof ApiError && e.code === 'not_found');
-    return true;
-  });
-  await assert.rejects(api.linkMember({ nic: 'X0000000000000', abNumber: 'AB0001' }), (e: unknown) => {
-    assert.ok(e instanceof ApiError && e.code === 'not_found');
-    return true;
-  });
+  for (const pair of [
+    { nic: 'P1503881234567', abNumber: 'AB0002' },
+    { nic: 'X0000000000000', abNumber: 'AB0001' },
+  ]) {
+    const miss = await api.linkMember(pair);
+    assert.equal(miss.purpose, 'link_member');
+    assert.equal(miss.sentTo, null);
+    await assert.rejects(api.verifyOtp(miss.challengeId, '123456'), (e: unknown) => {
+      assert.ok(e instanceof ApiError && e.code === 'validation_failed');
+      return true;
+    });
+  }
   await assert.rejects(api.linkMember({ nic: 'bad', abNumber: '1' }), (e: unknown) => {
     assert.ok(e instanceof ApiError && e.code === 'validation_failed');
     assert.ok(e.details.nic && e.details.abNumber);

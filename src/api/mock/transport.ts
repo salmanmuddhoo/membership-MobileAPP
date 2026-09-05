@@ -389,12 +389,20 @@ export function createMockTransport(): Transport {
         const person = [...people.values()].find(
           p => p.profile.kind === 'member' && p.profile.status === 'active' && p.nic === nic && p.profile.memberNo === abNumber
         );
-        if (!person) {
-          throw fail('not_found', 'No active member matches that NIC and AB Number. Check both, or visit a branch.');
-        }
+        // The same answer whether the pair named someone or not: a miss
+        // gets a challenge nothing can verify against, and no code. That is
+        // what keeps the response from saying whether a NIC + AB Number
+        // combination exists — the real backend does exactly this.
         const id = nextId('otp');
-        challenges.set(id, { id, mobile: person.mobile, purpose: 'link_member', personId: person.id, attempts: 0, createdAt: Date.now() });
-        return { challengeId: id, purpose: 'link_member', sentTo: masked(person.mobile), expiresInSeconds: 300 };
+        challenges.set(id, {
+          id,
+          mobile: person?.mobile ?? '',
+          purpose: 'link_member',
+          personId: person?.id ?? null,
+          attempts: 0,
+          createdAt: Date.now(),
+        });
+        return { challengeId: id, purpose: 'link_member', sentTo: null, expiresInSeconds: 300 };
       },
     },
     {
@@ -420,6 +428,8 @@ export function createMockTransport(): Transport {
       handle: (_, body) => {
         const previous = challenges.get(String(body?.challengeId ?? ''));
         if (!previous) throw fail('not_found', 'Start again.');
+        const wait = Math.ceil((previous.createdAt + 30_000 - Date.now()) / 1000);
+        if (wait > 0) throw fail('rate_limited', `Wait ${wait} seconds before requesting another code.`);
         challenges.delete(previous.id);
         const id = nextId('otp');
         challenges.set(id, { ...previous, id, attempts: 0, createdAt: Date.now() });
@@ -434,7 +444,9 @@ export function createMockTransport(): Transport {
         if (!challenge || Date.now() - challenge.createdAt > 300_000) {
           throw fail('not_found', 'That code has expired. Request a new one.');
         }
-        if (String(body?.code ?? '') !== OTP) {
+        // A miss (no person behind a link challenge) never matches.
+        const miss = challenge.purpose === 'link_member' && !challenge.personId;
+        if (miss || String(body?.code ?? '') !== OTP) {
           challenge.attempts += 1;
           if (challenge.attempts >= 5) {
             challenges.delete(challenge.id);

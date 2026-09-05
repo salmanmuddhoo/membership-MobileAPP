@@ -97,8 +97,11 @@ export interface OtpChallenge {
   challengeId: string;
   // What the challenge will produce once the code is verified.
   purpose: 'link_member' | 'sign_up';
-  // The number the code went to, masked: +2305xxx234.
-  sentTo: string;
+  // The number the code went to, masked (+2305xxx234), for a sign-up: the
+  // person just typed it. Always null for a link: the server answers a
+  // NIC + AB Number that names nobody exactly as one that does, so even a
+  // masked number would give the game away.
+  sentTo: string | null;
   expiresInSeconds: number;
 }
 
