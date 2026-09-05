@@ -29,7 +29,11 @@ export default function SignUp() {
       const challenge = await api.startSignUp(e164);
       router.push({
         pathname: '/(auth)/verify',
-        params: { challengeId: challenge.challengeId, sentTo: challenge.sentTo, purpose: challenge.purpose },
+        params: {
+          challengeId: challenge.challengeId,
+          sentTo: challenge.sentTo ?? '',
+          purpose: challenge.purpose,
+        },
       });
     } catch (e) {
       if (e instanceof ApiError) {

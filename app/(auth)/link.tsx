@@ -25,7 +25,11 @@ export default function LinkMember() {
       });
       router.push({
         pathname: '/(auth)/verify',
-        params: { challengeId: challenge.challengeId, sentTo: challenge.sentTo, purpose: challenge.purpose },
+        params: {
+          challengeId: challenge.challengeId,
+          sentTo: challenge.sentTo ?? '',
+          purpose: challenge.purpose,
+        },
       });
     } catch (e) {
       if (e instanceof ApiError) {

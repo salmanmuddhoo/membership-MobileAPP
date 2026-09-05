@@ -42,9 +42,11 @@ npm run lint       # eslint (expo config)
 npm test           # unit tests: phone rule, validation, the mock end to end
 ```
 
-Scan the QR code with **Expo Go** on a phone to try it without a build. For
-a store build, use EAS (`npx eas build`) — the app has no custom native code,
-so no Xcode or Android Studio project is checked in.
+Scan the QR code with **Expo Go** on a phone to try it without a build. To
+put it on an Android phone as its own app — GitHub can build the APK for
+you, no computer setup needed — see
+[`docs/install-android.md`](docs/install-android.md). The app has no custom
+native code, so no Xcode or Android Studio project is checked in.
 
 ## Why this stack
 

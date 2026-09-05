@@ -12,11 +12,11 @@ export default function Verify() {
   const { signIn } = useAuth();
   const params = useLocalSearchParams<{
     challengeId: string;
-    sentTo: string;
+    sentTo?: string;
     purpose: 'link_member' | 'sign_up';
   }>();
   const [challengeId, setChallengeId] = useState(params.challengeId);
-  const [sentTo, setSentTo] = useState(params.sentTo);
+  const [sentTo, setSentTo] = useState<string | null>(params.sentTo || null);
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
@@ -70,8 +70,8 @@ export default function Verify() {
       <Title>Enter the code</Title>
       <Body muted>
         {params.purpose === 'link_member'
-          ? `Sent by SMS to the mobile on your membership record, ${sentTo}. If that number is no longer yours, visit a branch with your ID.`
-          : `Sent by SMS to ${sentTo}.`}
+          ? 'If your NIC and AB Number match an active member, a code has been sent by SMS to the mobile on that record. Nothing arriving in a minute or two means the details did not match, or the number on record is no longer yours. Check them, or visit a branch with your ID.'
+          : `Sent by SMS to ${sentTo ?? 'your mobile'}.`}
       </Body>
       <Spacer size="xl" />
       {problem ? <Banner tone="danger">{problem}</Banner> : null}
