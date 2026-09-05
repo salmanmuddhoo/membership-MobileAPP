@@ -29,7 +29,10 @@ export function formatDateTime(value: string | null | undefined): string {
 
 const STATUS_LABELS: Record<string, string> = {
   draft: 'Draft',
-  new: 'Submitted',
+  // Submitted from the phone; the branch takes it from here. 'new' is the
+  // officer's own submit into the chain, after the signed form and payment.
+  received: 'Submitted',
+  new: 'Received by the branch',
   submitted_for_review: 'Under review',
   returned: 'Returned to you',
   approved: 'Approved',

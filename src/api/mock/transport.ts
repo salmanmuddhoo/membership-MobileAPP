@@ -714,7 +714,7 @@ export function createMockTransport(): Transport {
         }
         const now = iso(new Date());
         app.parties = parties;
-        app.status = 'new';
+        app.status = 'received';
         app.submittedAt = now;
         app.updatedAt = now;
         app.returnComment = null;

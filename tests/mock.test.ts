@@ -164,7 +164,7 @@ test('a new applicant applies end to end', async () => {
   }
 
   const submitted = await api.submitApplication(token, app.id);
-  assert.equal(submitted.status, 'new');
+  assert.equal(submitted.status, 'received');
   assert.ok(submitted.submittedAt);
   // Phones were normalised at submit.
   assert.equal(submitted.parties.find(p => p.subject === 'applicant')?.values.mobile, '+23059990000');
