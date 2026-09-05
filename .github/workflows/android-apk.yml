@@ -18,6 +18,14 @@ on:
         type: string
   push:
     tags: ['v*']
+  # A pull request that touches the build itself proves it still builds.
+  pull_request:
+    paths:
+      - '.github/workflows/android-apk.yml'
+      - 'scripts/android-signing.*'
+      - 'app.json'
+      - 'package.json'
+      - 'package-lock.json'
 
 permissions:
   contents: write
