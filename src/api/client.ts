@@ -45,7 +45,22 @@ export function createHttpTransport(baseUrl: string): Transport {
   return {
     async request<T>(path: string, options: RequestOptions = {}): Promise<T> {
       const headers: Record<string, string> = { accept: 'application/json' };
-      if (options.body !== undefined) {
+      const method = options.method ?? 'GET';
+      // A write with no body of its own still sends an empty JSON object.
+      //
+      // Submitting an application is the one call that had nothing to send —
+      // the id is in the path — so it went out as a POST with no body and no
+      // content-type, and it was the one call answered with a 403 while
+      // every other POST, all of which carry a body, went through. A
+      // bodyless POST is perfectly legal HTTP and this application accepts
+      // it, but it is an unusual enough shape that layers in front of the
+      // application (a WAF, a proxy, a platform's firewall rules) refuse it,
+      // and none of them is reading our code to find out that the body would
+      // have been ignored. Sending {} costs two bytes and makes every write
+      // the same shape as every other.
+      const writes = method === 'POST' || method === 'PUT' || method === 'PATCH';
+      const body = options.body === undefined && writes ? {} : options.body;
+      if (body !== undefined) {
         headers['content-type'] = 'application/json';
       }
       if (options.token) headers.authorization = `Bearer ${options.token}`;
@@ -53,10 +68,9 @@ export function createHttpTransport(baseUrl: string): Transport {
       let response: Response;
       try {
         response = await fetch(`${root}${path}`, {
-          method: options.method ?? 'GET',
+          method,
           headers,
-          body:
-            options.body === undefined ? undefined : JSON.stringify(options.body),
+          body: body === undefined ? undefined : JSON.stringify(body),
           signal: options.signal,
         });
       } catch {

@@ -123,3 +123,53 @@ test('an unreachable server is a network error, not a server error', async () =>
     globalThis.fetch = original;
   }
 });
+
+test('a write with no body of its own still sends an empty JSON object', async () => {
+  // Submitting an application has nothing to send — the id is in the path —
+  // so it went out as a POST with no body and no content-type, and it was
+  // the one call answered 403 while every other POST, all carrying a body,
+  // went through. Legal HTTP, and this application accepts it, but an
+  // unusual enough shape that layers in front of an application refuse it.
+  const seen: { method?: string; headers?: HeadersInit; body?: unknown }[] = [];
+  const original = globalThis.fetch;
+  globalThis.fetch = (async (_url: string, init: RequestInit) => {
+    seen.push({ method: init.method, headers: init.headers, body: init.body });
+    return new Response(JSON.stringify({ data: { ok: true }, correlationId: 'c' }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  }) as unknown as typeof fetch;
+  const transport = createHttpTransport('https://example.test');
+  try {
+    await transport.request('/applications/a1/submit', { method: 'POST' });
+    assert.equal(seen[0].body, '{}');
+    assert.equal(
+      (seen[0].headers as Record<string, string>)['content-type'],
+      'application/json'
+    );
+
+    await transport.request('/applications', { method: 'PUT' });
+    assert.equal(seen[1].body, '{}');
+
+    // A body that was given is untouched.
+    await transport.request('/auth/link-member', {
+      method: 'POST',
+      body: { nic: 'B123' },
+    });
+    assert.equal(seen[2].body, JSON.stringify({ nic: 'B123' }));
+
+    // A read still sends nothing, and claims no content type.
+    await transport.request('/me');
+    assert.equal(seen[3].body, undefined);
+    assert.equal(
+      (seen[3].headers as Record<string, string>)['content-type'],
+      undefined
+    );
+
+    // Nor does a DELETE invent one.
+    await transport.request('/applications/a1', { method: 'DELETE' });
+    assert.equal(seen[4].body, undefined);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
