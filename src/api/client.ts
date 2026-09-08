@@ -82,9 +82,16 @@ export function createHttpTransport(baseUrl: string): Transport {
         );
       }
       if (!response.ok || !parsed || !('data' in parsed)) {
+        // Not the envelope: a gateway page, a timeout, a body that is not
+        // JSON. Deliberately worded differently from the server's own
+        // internal_error ("Something went wrong. Please try again."), which
+        // arrives as a parsed envelope through the branch above. The two
+        // are different failures — one is a defect in a handler, the other
+        // never reached a handler's answer — and giving them the same
+        // sentence makes the screen no help at all in telling them apart.
         throw new ApiError(
           'internal_error',
-          'Something went wrong. Please try again.',
+          `The server's answer could not be read (HTTP ${response.status}).`,
           correlationId,
           {},
           response.status
