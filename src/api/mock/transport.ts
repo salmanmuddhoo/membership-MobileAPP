@@ -79,6 +79,7 @@ function seedMember(): Person {
       joinedAt: daysAgo(400),
       membershipType: { code: 'individual', name: 'Individual' },
       pendingUpdate: null,
+      lastUpdate: null,
       parties: [
         {
           subject: 'applicant',
@@ -232,6 +233,7 @@ export function createMockTransport(): Transport {
           membershipType: null,
           parties: [],
           pendingUpdate: null,
+          lastUpdate: null,
         },
         accounts: [],
         transactions: {},
@@ -285,7 +287,7 @@ export function createMockTransport(): Transport {
           mobile,
           nic: null,
           displayName: 'Applicant',
-          profile: { kind: 'applicant', memberNo: null, status: 'none', joinedAt: null, membershipType: null, parties: [], pendingUpdate: null },
+          profile: { kind: 'applicant', memberNo: null, status: 'none', joinedAt: null, membershipType: null, parties: [], pendingUpdate: null, lastUpdate: null },
           accounts: [],
           transactions: {},
           documents: [],
@@ -501,6 +503,12 @@ export function createMockTransport(): Transport {
         if (person.profile.kind !== 'member' || !person.profile.membershipType) {
           throw fail('forbidden', 'Only a member can update member details.');
         }
+        if (person.profile.pendingUpdate) {
+          throw fail(
+            'conflict',
+            'An update is already waiting for staff to verify it.'
+          );
+        }
         const type = typeByCode(person.profile.membershipType.code);
         const parties = normalisePhones(type, body?.parties ?? []);
         const missing = missingFields(type, parties);
@@ -526,6 +534,13 @@ export function createMockTransport(): Transport {
           ...person.profile,
           parties,
           pendingUpdate: { id: request.id, submittedAt: request.submittedAt },
+          lastUpdate: {
+            id: request.id,
+            status: 'pending',
+            submittedAt: request.submittedAt,
+            decidedAt: null,
+            comment: null,
+          },
         };
         return request;
       },
