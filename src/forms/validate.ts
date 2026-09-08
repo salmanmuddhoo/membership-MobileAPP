@@ -45,6 +45,13 @@ export function subjectsOf(type: MembershipType): FieldSubject[] {
 export function missingFields(type: MembershipType, parties: PartyValues[]): MissingField[] {
   const missing: MissingField[] = [];
   for (const party of parties) {
+    // Only the first nominee has to be complete. A type that configures
+    // two or three is offering slots to a family that wants them, not
+    // demanding every one be filled — the same rule the server applies in
+    // problemsBlockingSubmission (capture.ts). Without it the phone is
+    // stricter than the thing it submits to: the button stays disabled
+    // over a second nominee the server would never have asked for.
+    if (party.subject === 'nominee' && party.ordinal !== 1) continue;
     for (const field of visibleFields(type, party.subject)) {
       if (!field.isMandatory) continue;
       const value = party.values[field.fieldKey];

@@ -58,3 +58,32 @@ test('server details fold into one message per field', () => {
     'nominee.1.nic': 'NIC is required.',
   });
 });
+
+test('only the first nominee has to be complete', () => {
+  // The server requires nominee 1 and skips the rest
+  // (problemsBlockingSubmission): a type configuring two or three is
+  // offering slots, not demanding they all be used. The phone was checking
+  // every one, so it refused to enable Submit over a second nominee the
+  // server would never have asked about.
+  const twoNominees = {
+    ...individual,
+    nomineeCount: 2,
+  };
+  const missing = missingFields(twoNominees, [
+    {
+      subject: 'applicant',
+      ordinal: 1,
+      values: Object.fromEntries(
+        individual.fields
+          .filter(f => f.subject === 'applicant' && f.isVisible)
+          .map(f => [f.fieldKey, f.dataType === 'phone' ? '57891234' : 'x'])
+      ),
+    },
+    { subject: 'nominee', ordinal: 1, values: { nominee_surname: 'Peerally', nominee_name: 'Bibi' } },
+    { subject: 'nominee', ordinal: 2, values: {} },
+  ]);
+  assert.deepEqual(
+    missing.filter(m => m.subject === 'nominee' && m.ordinal === 2),
+    []
+  );
+});
