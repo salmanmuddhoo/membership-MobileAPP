@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   contentTypeFor,
   problemWith,
+  sizeToDeclare,
   MAX_UPLOAD_BYTES,
 } from '../src/lib/upload-file.ts';
 
@@ -69,5 +70,29 @@ test('an ordinary photo passes', () => {
   assert.equal(
     problemWith({ name: 'p.jpg', size: 2_400_000, contentType: 'image/jpeg' }),
     null
+  );
+});
+
+test('the size declared is the file on disk, not what the picker said', () => {
+  // Asked for a photo at quality 0.8, expo-image-picker re-encodes it: the
+  // URI points at the compressed copy while fileSize still describes the
+  // original. Declaring the original and then sending the copy is a real
+  // mismatch — begin-upload records one number, SharePoint receives another,
+  // and commit-upload refuses the pair as a truncated transfer. A PDF is
+  // never re-encoded, which is why files worked and photos did not.
+  assert.equal(sizeToDeclare(1_240_000, 3_800_000), 1_240_000);
+  // Even when the picker's number looks perfectly reasonable.
+  assert.equal(sizeToDeclare(900, 901), 900);
+});
+
+test('the picker is the fallback only when the file cannot be measured', () => {
+  assert.equal(sizeToDeclare(null, 2_400_000), 2_400_000);
+  assert.equal(sizeToDeclare(0, 2_400_000), 2_400_000);
+  // Neither knows: problemWith refuses it as empty rather than sending 0.
+  assert.equal(sizeToDeclare(null, undefined), 0);
+  assert.match(
+    problemWith({ name: 'p.jpg', size: sizeToDeclare(null, undefined), contentType: 'image/jpeg' })
+      ?.message ?? '',
+    /empty/
   );
 });

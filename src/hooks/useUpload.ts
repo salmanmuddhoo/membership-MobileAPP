@@ -10,7 +10,7 @@ import { File } from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
 import { api, API_MODE } from '../api';
 import { useAuth } from '../auth/AuthContext';
-import { contentTypeFor, problemWith } from '../lib/upload-file';
+import { contentTypeFor, problemWith, sizeToDeclare } from '../lib/upload-file';
 import { keys } from './queries';
 
 export interface PickedFile {
@@ -20,31 +20,36 @@ export interface PickedFile {
   mimeType: string;
 }
 
-// What a picker reports about a file is not what the server is given.
-// Neither picker guarantees a size — expo-image-picker leaves fileSize
-// undefined for a camera photo on Android — and expo-document-picker often
-// cannot name a type. Both were passed straight through, so a good photo
-// arrived as 0 bytes and a PDF from Files arrived as
-// application/octet-stream, and the server refused each on its own terms.
-// The file system knows the real size and the extension names the type, so
-// settle both here, from the one place every picker goes through.
+// What a picker reports about a file is not what the server is given. It
+// may not name a type at all (expo-document-picker, often), and its size
+// may be missing (expo-image-picker leaves fileSize undefined for a camera
+// photo on Android) or simply describe a different file from the one at the
+// URI (the same picker re-encodes a photo at quality 0.8 and reports the
+// original asset's size for the compressed copy). Passed straight through,
+// each of those is refused by the server on its own terms.
+//
+// So measure the file at the URI — the one whose bytes are about to be sent
+// — and name the type from the extension when the picker cannot. One place,
+// every picker goes through it.
 function describe(
   uri: string,
   name: string,
   pickerMimeType: string | undefined | null,
   pickerSize: number | undefined | null
 ): PickedFile {
-  let size = pickerSize ?? 0;
-  if (size <= 0) {
-    try {
-      size = new File(uri).size;
-    } catch {
-      // A URI the file system cannot open (a web blob: URL, say). Leave the
-      // size as the picker gave it; problemWith has the last word.
-      size = pickerSize ?? 0;
-    }
+  let measured: number | null = null;
+  try {
+    measured = new File(uri).size;
+  } catch {
+    // A URI the file system cannot open (a web blob: URL, say). The
+    // picker's number is all there is; problemWith has the last word.
   }
-  return { uri, name, size, mimeType: contentTypeFor(name, pickerMimeType) ?? '' };
+  return {
+    uri,
+    name,
+    size: sizeToDeclare(measured, pickerSize),
+    mimeType: contentTypeFor(name, pickerMimeType) ?? '',
+  };
 }
 
 export async function pickFromCamera(): Promise<PickedFile | null> {
@@ -82,7 +87,10 @@ async function putBytes(uploadUrl: string, file: PickedFile): Promise<void> {
   // depends on the runtime resolving a file:// URI — which is exactly the
   // part that is not dependable on Android.
   const body = new File(file.uri);
-  const total = body.size;
+  // The size declared at begin-upload, not a fresh measurement: one number
+  // has to describe this file from begin through PUT to commit, and the
+  // whole failure this guards against was two of them disagreeing.
+  const total = file.size;
   const response = await fetch(uploadUrl, {
     method: 'PUT',
     headers: {

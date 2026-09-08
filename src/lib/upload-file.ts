@@ -66,6 +66,31 @@ export function contentTypeFor(
   return byExtension ?? null;
 }
 
+/**
+ * The size to declare at begin-upload: what the file on disk actually
+ * measures, never what the picker said about it.
+ *
+ * These disagree, and not only when the picker says nothing. Asked for a
+ * photo at quality 0.8, expo-image-picker re-encodes it and hands back a
+ * URI pointing at the compressed copy — while fileSize still describes the
+ * original asset. Declaring that and then sending the copy is a real size
+ * mismatch: begin-upload records one number, SharePoint receives another,
+ * and commit-upload refuses the pair as a truncated transfer ("The uploaded
+ * file is incomplete"). A PDF is not re-encoded, which is why files worked
+ * and photos did not.
+ *
+ * The file at the URI is the one whose bytes are about to be sent, so its
+ * size is the only number that can be right. The picker's is a fallback for
+ * when the file system cannot open the URI at all.
+ */
+export function sizeToDeclare(
+  measured: number | null,
+  pickerSize: number | undefined | null
+): number {
+  if (measured !== null && measured > 0) return measured;
+  return pickerSize ?? 0;
+}
+
 export interface FileProblem {
   message: string;
 }
