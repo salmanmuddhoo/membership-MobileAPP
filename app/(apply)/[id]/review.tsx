@@ -40,14 +40,24 @@ export default function Review() {
     setServerDetails({});
     try {
       await submit.mutateAsync();
-      await clearDraft(app!.id);
-      router.replace({ pathname: '/(apply)/[id]/status', params: { id: app!.id, justSubmitted: '1' } });
     } catch (e) {
       if (e instanceof ApiError) {
-        setProblem(e.message);
+        // userMessage, not message: it carries the correlation id, which is
+        // the whole of what makes a failure here traceable to its request
+        // in the server log.
+        setProblem(e.userMessage);
         if (e.code === 'validation_failed') setServerDetails(e.details);
-      } else setProblem('Something went wrong. Please try again.');
+      } else {
+        setProblem(`Could not submit: ${(e as Error).message ?? 'unknown error'}`);
+      }
+      return;
     }
+    // Past this point the application has been submitted. Clearing the
+    // draft and moving on are tidying up after that fact, and a failure in
+    // either is not a failed submission — inside the try above, one would
+    // have been reported as if the whole thing had gone wrong.
+    await clearDraft(app!.id).catch(() => {});
+    router.replace({ pathname: '/(apply)/[id]/status', params: { id: app!.id, justSubmitted: '1' } });
   }
 
   return (
