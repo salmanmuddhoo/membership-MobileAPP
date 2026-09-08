@@ -215,6 +215,20 @@ export function Button({
   );
 }
 
+// Whether a field must be filled in is configuration (the membership type's
+// isMandatory), and the person filling the form is the one it is for: a red
+// star on the mandatory ones alone leaves an optional field looking exactly
+// like a mandatory one nobody has starred yet. Say both, so a field that can
+// be left blank says so rather than being the absence of a mark.
+function FieldRequirement({ required }: { required?: boolean }) {
+  if (required === undefined) return null;
+  return required ? (
+    <Text style={{ color: colors.danger }}> *</Text>
+  ) : (
+    <Text style={styles.optionalText}> (optional)</Text>
+  );
+}
+
 export function TextField({
   label,
   error,
@@ -232,7 +246,7 @@ export function TextField({
     <View style={styles.field}>
       <Text style={type.label}>
         {label}
-        {required ? <Text style={{ color: colors.danger }}> *</Text> : null}
+        <FieldRequirement required={required} />
       </Text>
       <TextInput
         placeholderTextColor={colors.muted}
@@ -268,7 +282,7 @@ export function ChoiceField({
     <View style={styles.field}>
       <Text style={type.label}>
         {label}
-        {required ? <Text style={{ color: colors.danger }}> *</Text> : null}
+        <FieldRequirement required={required} />
       </Text>
       <View style={styles.chips}>
         {choices.map(choice => {
@@ -363,6 +377,7 @@ const styles = StyleSheet.create({
   inputReadOnly: { backgroundColor: colors.bg, color: colors.muted },
   errorText: { color: colors.danger, fontSize: 13, marginTop: spacing.xs },
   hintText: { color: colors.muted, fontSize: 13, marginTop: spacing.xs },
+  optionalText: { color: colors.muted, fontWeight: '400' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.sm },
   chip: {
     borderRadius: radius.pill,
