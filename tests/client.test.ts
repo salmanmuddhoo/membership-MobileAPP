@@ -124,12 +124,12 @@ test('an unreachable server is a network error, not a server error', async () =>
   }
 });
 
-test('a write with no body of its own still sends an empty JSON object', async () => {
-  // Submitting an application has nothing to send — the id is in the path —
-  // so it went out as a POST with no body and no content-type, and it was
-  // the one call answered 403 while every other POST, all carrying a body,
-  // went through. Legal HTTP, and this application accepts it, but an
-  // unusual enough shape that layers in front of an application refuse it.
+test('every write declares application/json, body or no body', async () => {
+  // Astro's origin check refuses any method outside GET/HEAD/OPTIONS with
+  // 403 when the request carries no content-type and no matching Origin —
+  // and a native app has no Origin to send. Submitting an application and
+  // deleting a draft were the only calls with nothing to send, so the only
+  // ones that omitted the header, and exactly the two answered 403.
   const seen: { method?: string; headers?: HeadersInit; body?: unknown }[] = [];
   const original = globalThis.fetch;
   globalThis.fetch = (async (_url: string, init: RequestInit) => {
@@ -140,16 +140,20 @@ test('a write with no body of its own still sends an empty JSON object', async (
     });
   }) as unknown as typeof fetch;
   const transport = createHttpTransport('https://example.test');
+  const typeOf = (i: number) =>
+    (seen[i].headers as Record<string, string>)['content-type'];
   try {
+    // POST with nothing to send: the type is declared and {} goes with it.
     await transport.request('/applications/a1/submit', { method: 'POST' });
+    assert.equal(typeOf(0), 'application/json');
     assert.equal(seen[0].body, '{}');
-    assert.equal(
-      (seen[0].headers as Record<string, string>)['content-type'],
-      'application/json'
-    );
 
-    await transport.request('/applications', { method: 'PUT' });
-    assert.equal(seen[1].body, '{}');
+    // DELETE with nothing to send: the type alone is what satisfies the
+    // check, and a body is not invented for a method whose body is widely
+    // stripped in transit.
+    await transport.request('/applications/a1', { method: 'DELETE' });
+    assert.equal(typeOf(1), 'application/json');
+    assert.equal(seen[1].body, undefined);
 
     // A body that was given is untouched.
     await transport.request('/auth/link-member', {
@@ -157,18 +161,18 @@ test('a write with no body of its own still sends an empty JSON object', async (
       body: { nic: 'B123' },
     });
     assert.equal(seen[2].body, JSON.stringify({ nic: 'B123' }));
+    assert.equal(typeOf(2), 'application/json');
 
-    // A read still sends nothing, and claims no content type.
+    // PUT with nothing to send behaves like POST.
+    await transport.request('/applications/a1/parties', { method: 'PUT' });
+    assert.equal(typeOf(3), 'application/json');
+    assert.equal(seen[3].body, '{}');
+
+    // A read sends nothing and claims no content type: the origin check
+    // never applies to it, and declaring one would be a lie.
     await transport.request('/me');
-    assert.equal(seen[3].body, undefined);
-    assert.equal(
-      (seen[3].headers as Record<string, string>)['content-type'],
-      undefined
-    );
-
-    // Nor does a DELETE invent one.
-    await transport.request('/applications/a1', { method: 'DELETE' });
     assert.equal(seen[4].body, undefined);
+    assert.equal(typeOf(4), undefined);
   } finally {
     globalThis.fetch = original;
   }
