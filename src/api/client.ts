@@ -45,18 +45,44 @@ export function createHttpTransport(baseUrl: string): Transport {
   return {
     async request<T>(path: string, options: RequestOptions = {}): Promise<T> {
       const headers: Record<string, string> = { accept: 'application/json' };
-      if (options.body !== undefined) {
-        headers['content-type'] = 'application/json';
-      }
+      const method = options.method ?? 'GET';
+
+      // Every write declares application/json, body or no body.
+      //
+      // Astro's origin check (security.checkOrigin, on by default; see
+      // astro/dist/core/app/origin-check.js) refuses any method outside
+      // GET/HEAD/OPTIONS with 403 "Cross-site POST form submissions are
+      // forbidden" when the request carries no content-type at all and no
+      // Origin header matching the site. A request that DOES declare a
+      // content-type is only refused if that type is form-like
+      // (x-www-form-urlencoded, multipart/form-data, text/plain).
+      //
+      // A native app sends no Origin — there is no browsing context to send
+      // one from — so the deciding factor is entirely the content-type.
+      // Submitting an application and deleting a draft were the only two
+      // calls with nothing to send, so they were the only two that omitted
+      // it, and they were exactly the two that came back 403 while every
+      // other write went through. Reproduced against a local server with
+      // nothing in front of it, which is what rules out a proxy or a
+      // platform firewall.
+      //
+      // Declaring the type is enough on its own; DELETE needs no body to go
+      // with it, and inventing one for a method whose body is widely
+      // stripped in transit would be asking for a different problem.
+      const writes = !['GET', 'HEAD', 'OPTIONS'].includes(method);
+      const body =
+        options.body === undefined && ['POST', 'PUT', 'PATCH'].includes(method)
+          ? {}
+          : options.body;
+      if (writes) headers['content-type'] = 'application/json';
       if (options.token) headers.authorization = `Bearer ${options.token}`;
 
       let response: Response;
       try {
         response = await fetch(`${root}${path}`, {
-          method: options.method ?? 'GET',
+          method,
           headers,
-          body:
-            options.body === undefined ? undefined : JSON.stringify(options.body),
+          body: body === undefined ? undefined : JSON.stringify(body),
           signal: options.signal,
         });
       } catch {
