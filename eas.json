@@ -11,12 +11,15 @@
       "android": { "buildType": "apk" },
       "env": {
         "EXPO_PUBLIC_API_MODE": "live",
-        "EXPO_PUBLIC_API_URL": "https://membership-git-main-salmans-projects-bf24bdbe.vercel.app"
+        "EXPO_PUBLIC_API_URL": "https://membership-ivory.vercel.app"
       }
     },
     "production": {
       "autoIncrement": true,
-      "env": { "EXPO_PUBLIC_API_MODE": "live", "EXPO_PUBLIC_API_URL": "https://www.albarakah.mu" }
+      "env": {
+        "EXPO_PUBLIC_API_MODE": "live",
+        "EXPO_PUBLIC_API_URL": "https://www.albarakah.mu"
+      }
     }
   },
   "submit": { "production": {} }

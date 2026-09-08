@@ -17,10 +17,25 @@ three work with the code exactly as it is.
 The repository has a workflow, `.github/workflows/android-apk.yml`, that
 builds an installable APK on GitHub's servers.
 
-1. Open the repository on GitHub → **Actions** → **Android APK** (left-hand list).
-2. Click **Run workflow**. Leave `api_mode` as `mock` for a first try — the
-   app then runs against its built-in demo backend and needs no server. (For
-   the real backend choose `live` and paste the web app's URL as `api_url`.)
+1. Open **this** repository (`membership-MobileAPP`, not `membership`) on
+   GitHub → **Actions** → **Android APK** (left-hand list).
+2. Click **Run workflow**. A small form drops down with two fields — this is
+   the only place `api_mode` and `api_url` are set; they are not files you
+   edit and not Vercel settings.
+
+   | Field      | For a first try | Against the real backend                                         |
+   | ---------- | --------------- | ---------------------------------------------------------------- |
+   | `api_mode` | `mock`          | `live`                                                           |
+   | `api_url`  | leave empty     | the web app's origin, e.g. `https://membership-ivory.vercel.app` |
+
+   In `mock` mode the app runs against its own built-in demo backend and
+   needs no server at all, which is the quickest way to see the screens. In
+   `live` mode it talks to the origin you give — no trailing slash, and the
+   value is baked into the APK at build time, so pointing it somewhere else
+   later means building again.
+
+   Then press the green **Run workflow** button in the form.
+
 3. Wait for the run to finish (about 10 minutes the first time).
 4. Open the finished run, scroll to **Artifacts**, and download
    `albarakah-member-apk`. It is a zip containing one `.apk`.
@@ -75,11 +90,11 @@ Expo's build service produces the same APK (or the `.aab` the Play Store
 wants) from the cloud, with `eas.json` in the repository already describing
 three profiles:
 
-| Profile      | Produces      | Backend                                |
-| ------------ | ------------- | -------------------------------------- |
-| `preview`    | APK           | Built-in mock                          |
-| `test`       | APK           | The test deployment of the web app     |
-| `production` | AAB for Play  | Production                             |
+| Profile      | Produces     | Backend                            |
+| ------------ | ------------ | ---------------------------------- |
+| `preview`    | APK          | Built-in mock                      |
+| `test`       | APK          | The test deployment of the web app |
+| `production` | AAB for Play | Production                         |
 
 ```bash
 npm install -g eas-cli
