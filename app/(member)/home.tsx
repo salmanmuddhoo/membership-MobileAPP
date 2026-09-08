@@ -47,6 +47,10 @@ export default function Home() {
         <Banner tone="info" title="Details update pending">
           Sent {formatDate(profile.pendingUpdate.submittedAt)}. Staff will verify it before your record changes.
         </Banner>
+      ) : profile?.lastUpdate?.status === 'declined' ? (
+        <Banner tone="warning" title="Your details update was not applied">
+          {profile.lastUpdate.comment ?? 'Visit a branch with your ID.'}
+        </Banner>
       ) : null}
 
       {!isMember && !me.isLoading ? (

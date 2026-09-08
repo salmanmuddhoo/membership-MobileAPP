@@ -140,8 +140,18 @@ export interface MemberProfile {
   joinedAt: string | null;
   membershipType: { code: string; name: string } | null;
   parties: PartyValues[];
-  // A pending change the member submitted that staff have not yet actioned.
+  // A change the member submitted that staff have not yet actioned.
   pendingUpdate: { id: string; submittedAt: string } | null;
+  // The last change they sent, whatever became of it. A declined one
+  // carries the reason staff wrote, which is the only way the member
+  // learns why nothing changed.
+  lastUpdate: {
+    id: string;
+    status: 'pending' | 'applied' | 'declined';
+    submittedAt: string;
+    decidedAt: string | null;
+    comment: string | null;
+  } | null;
 }
 
 export interface AccountSummary {

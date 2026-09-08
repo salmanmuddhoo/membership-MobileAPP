@@ -63,6 +63,10 @@ export default function Profile() {
         <Banner tone="info" title="Update pending">
           Sent {formatDate(profile.pendingUpdate.submittedAt)}. Staff will verify it before your record changes.
         </Banner>
+      ) : profile.lastUpdate?.status === 'declined' ? (
+        <Banner tone="warning" title="Your last update was not applied">
+          {profile.lastUpdate.comment ?? 'Visit a branch with your ID.'}
+        </Banner>
       ) : incomplete > 0 ? (
         <Banner tone="warning" title="Some details are missing">
           {incomplete} required {incomplete === 1 ? 'detail is' : 'details are'} not on your record. You can complete them here.
