@@ -583,6 +583,16 @@ export function createMockTransport(): Transport {
         const subject = requireSession(options);
         const mobile = personForSubject(subject).mobile;
         const type = typeByCode(String(body?.membershipTypeCode ?? ''));
+        // Mirrors the backend: only an online-registrable type can be started
+        // from the app, and the refusal comes before any row is created.
+        if (!type.onlineRegistration) {
+          throw fail(
+            'validation_failed',
+            'Individual membership is the only kind you can apply for in the app. ' +
+              'Any other membership is started at a branch.',
+            { membershipType: ['Not available for online registration.'] }
+          );
+        }
         const open = [...applications.values()].find(
           a => applicantOf.get(a.id) === subject && !['approved', 'rejected'].includes(a.status)
         );

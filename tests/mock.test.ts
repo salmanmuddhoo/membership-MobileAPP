@@ -116,6 +116,30 @@ test('a wrong code is refused with a field message; five of them burn the challe
   });
 });
 
+test('the app offers individual only; another type is refused', async () => {
+  const api = memberApi(createMockTransport());
+
+  // Reference marks which types a new applicant may start online. The branch
+  // still handles the rest, so they are present but flagged off.
+  const ref = await api.reference();
+  const individual = ref.membershipTypes.find(t => t.code === 'individual');
+  assert.equal(individual?.onlineRegistration, true);
+  assert.ok(
+    ref.membershipTypes.some(t => t.code !== 'individual' && !t.onlineRegistration),
+    'another, non-online-registrable type should exist'
+  );
+
+  const token = (await signUp(api, '5999 0055')).accessToken;
+  await assert.rejects(api.startApplication(token, 'corporate'), (e: unknown) => {
+    assert.ok(e instanceof ApiError && e.code === 'validation_failed');
+    assert.ok('membershipType' in e.details);
+    return true;
+  });
+  // The refusal created nothing, so the applicant can still apply for individual.
+  const app = await api.startApplication(token, 'individual');
+  assert.equal(app.membershipTypeCode, 'individual');
+});
+
 test('a new applicant applies end to end', async () => {
   const api = memberApi(createMockTransport());
   const session = await signUp(api, '5999 0000');

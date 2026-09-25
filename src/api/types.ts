@@ -45,6 +45,9 @@ export interface MembershipType {
   name: string;
   description: string;
   isActive: boolean;
+  // Whether a new applicant may apply for this type from the app. Others are
+  // started at a branch; the apply flow offers only the ones that are true.
+  onlineRegistration: boolean;
   fields: MembershipTypeField[];
   nomineeCount: number;
   // What the applicant must file. Mirrors the checklist the officer sees.

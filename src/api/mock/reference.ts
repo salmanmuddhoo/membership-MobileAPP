@@ -60,6 +60,7 @@ export const MEMBERSHIP_TYPES: MembershipType[] = [
     name: 'Individual',
     description: 'An adult applying in their own name.',
     isActive: true,
+    onlineRegistration: true,
     nomineeCount: 1,
     fees: [
       { code: 'entrance_fee', name: 'Entrance fee', amount: '100.00', requirement: 'required' },
@@ -100,6 +101,7 @@ export const MEMBERSHIP_TYPES: MembershipType[] = [
     name: 'Corporate',
     description: 'A registered company, société or association.',
     isActive: true,
+    onlineRegistration: false,
     nomineeCount: 1,
     fees: [
       { code: 'entrance_fee', name: 'Entrance fee', amount: '500.00', requirement: 'required' },
@@ -134,6 +136,7 @@ export const MEMBERSHIP_TYPES: MembershipType[] = [
     name: 'Minor',
     description: 'A child under 18, applied for by a guardian who is a member.',
     isActive: true,
+    onlineRegistration: false,
     nomineeCount: 1,
     fees: [
       { code: 'entrance_fee', name: 'Entrance fee', amount: '50.00', requirement: 'required' },
