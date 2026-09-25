@@ -37,6 +37,9 @@ jobs:
     env:
       EXPO_PUBLIC_API_MODE: ${{ inputs.api_mode || 'mock' }}
       EXPO_PUBLIC_API_URL: ${{ inputs.api_url || '' }}
+      # Shown on the app's first screen, so a person holding the phone can
+      # tell which build they are actually running.
+      EXPO_PUBLIC_BUILD: ${{ github.sha }}
     steps:
       - uses: actions/checkout@v4
 
@@ -87,6 +90,37 @@ jobs:
           cp android/app/build/outputs/apk/release/app-release.apk \
             "out/albarakah-member-${EXPO_PUBLIC_API_MODE}-${GITHUB_SHA::7}.apk"
           ls -la out
+
+      # On the run's own page, not buried in the log. Whether this APK can
+      # install over the last one is the single thing a person needs to know
+      # before they pick up their phone, and getting it wrong looks like the
+      # new build simply not taking effect — the app keeps running the old
+      # code, and every fix in the new one appears not to work.
+      - name: Say whether this APK can update the last one
+        if: always()
+        run: |
+          {
+            echo "## Al Barakah member APK"
+            echo
+            echo "\`$(ls out 2>/dev/null | head -1)\`"
+            echo
+            if [ -n "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" ]; then
+              echo "Signed with the repository's key: **installs over the previous build as an update.**"
+            else
+              echo "> [!IMPORTANT]"
+              echo "> Signed with a **throwaway key**, generated for this run alone."
+              echo ">"
+              echo "> **Uninstall the Al Barakah app from the phone before installing this.**"
+              echo "> Android refuses to replace an app with one signed by a different key."
+              echo "> Depending on the phone that shows as \"App not installed\" — or the"
+              echo "> install appears to do nothing and the old version keeps running, so"
+              echo "> whatever this build changed looks like it did not work."
+              echo ">"
+              echo "> To stop needing this, set the ANDROID_KEYSTORE_BASE64,"
+              echo "> ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS and ANDROID_KEY_PASSWORD"
+              echo "> secrets — docs/install-android.md has the four commands."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@v4
         with:

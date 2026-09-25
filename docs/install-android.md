@@ -41,11 +41,21 @@ builds an installable APK on GitHub's servers.
    `albarakah-member-apk`. It is a zip containing one `.apk`.
 5. Get the `.apk` onto the phone: email it to yourself, put it in Google
    Drive, or plug the phone in and copy it to Downloads.
-6. On the phone, open the file. Android will ask to **allow installs from
+6. **If Al Barakah is already on the phone, uninstall it first** — unless
+   you have set the signing-key secrets below. Each build is otherwise
+   signed with its own throwaway key, and Android will not replace an app
+   with one signed by a different key. On some phones that says "App not
+   installed"; on others the install appears to do nothing and the old
+   version simply keeps running, so everything the new build changed looks
+   like it did not work. The run's summary page says which kind of build
+   you downloaded.
+7. On the phone, open the file. Android will ask to **allow installs from
    this source** the first time (Settings → Apps → Special access → Install
    unknown apps, or just follow the prompt). Allow it, then **Install**.
-7. Open **Al Barakah**. In mock mode: "I'm already a member" with NIC
-   `P1503881234567` and AB Number `AB0001`, code `123456`.
+8. Open **Al Barakah**. In mock mode: "I'm already a member" with NIC
+   `P1503881234567` and AB Number `AB0001`, code `123456`. In live mode,
+   check the version on the sign-in screen matches the build you just
+   installed — if it does not, the install did not replace the old app.
 
 Pushing a tag that starts with `v` (for example `v0.1.0`) also runs this
 workflow and attaches the APK to a **GitHub Release**, which gives you a

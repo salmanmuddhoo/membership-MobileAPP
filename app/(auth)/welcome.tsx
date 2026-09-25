@@ -3,6 +3,8 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { API_MODE } from '@/api';
+import Constants from 'expo-constants';
+import { formatBuild } from '@/lib/build';
 import { Button } from '@/ui';
 import { colors, spacing } from '@/ui/theme';
 
@@ -25,6 +27,11 @@ export default function Welcome() {
             Demo mode. Member: NIC P1503881234567, AB0001 · New applicant: any mobile · Code: 123456
           </Text>
         ) : null}
+        {/* Which build this is. Quiet, and the first thing to check when a
+            new APK seems not to have changed anything. */}
+        <Text style={styles.build}>
+          {formatBuild(Constants.expoConfig?.version ?? '', API_MODE)}
+        </Text>
       </View>
     </SafeAreaView>
   );
@@ -53,4 +60,5 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   note: { color: colors.muted, fontSize: 12, textAlign: 'center', marginTop: spacing.sm },
+  build: { color: colors.muted, fontSize: 11, textAlign: 'center', marginTop: spacing.xs },
 });
