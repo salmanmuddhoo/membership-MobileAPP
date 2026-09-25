@@ -53,14 +53,24 @@ export default function ChooseType() {
       .reduce((sum, f) => sum + Number(f.amount), 0)
       .toFixed(2);
 
+  // Only the types the backend will accept from the app. Others exist (a
+  // branch handles them) but cannot be started here, so they are not offered.
+  const offered = reference.data?.membershipTypes.filter(t => t.onlineRegistration) ?? [];
+  const single = offered.length === 1;
+
   return (
     <Screen>
-      <Title>Which membership?</Title>
+      <Title>{single ? `Apply: ${offered[0].name}` : 'Become a member'}</Title>
       <Body muted>Your answers are saved as you go. You can stop and come back.</Body>
       <Spacer />
       {problem ? <Banner tone="danger">{problem}</Banner> : null}
       {reference.error ? <Banner tone="danger">Could not load the membership types.</Banner> : null}
-      {reference.data?.membershipTypes.map(t => (
+      {!reference.error && offered.length === 0 ? (
+        <Banner tone="warning">
+          Online membership registration is not available right now. Please visit a branch.
+        </Banner>
+      ) : null}
+      {offered.map(t => (
         <Card key={t.id} onPress={() => !start.isPending && choose(t)}>
           <Text style={type.subheading}>{t.name}</Text>
           <Text style={type.small}>{t.description}</Text>
