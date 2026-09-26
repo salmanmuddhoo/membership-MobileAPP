@@ -6,6 +6,7 @@ import type {
   AccountTransaction,
   Application,
   ChangeRequest,
+  Dependent,
   FiledDocument,
   LinkMemberRequest,
   MemberProfile,
@@ -68,6 +69,12 @@ export function memberApi(transport: Transport) {
 
     accounts: (token: string) => call<AccountSummary[]>('/me/accounts', { token }),
 
+    dependents: (token: string) => call<Dependent[]>('/me/dependents', { token }),
+    dependentTransactions: (token: string, dependentId: string, accountId: string) =>
+      call<AccountTransaction[]>(
+        `/me/dependents/${encodeURIComponent(dependentId)}/accounts/${encodeURIComponent(accountId)}/transactions`,
+        { token }
+      ),
     transactions: (token: string, accountId: string) =>
       call<AccountTransaction[]>(
         `/me/accounts/${encodeURIComponent(accountId)}/transactions`,

@@ -20,6 +20,7 @@ import type {
   Application,
   ApplicationDocument,
   ChangeRequest,
+  Dependent,
   FiledDocument,
   MemberProfile,
   MembershipType,
@@ -41,6 +42,8 @@ interface Person {
   accounts: AccountSummary[];
   transactions: Record<string, AccountTransaction[]>;
   documents: FiledDocument[];
+  // Minors this person is guardian of, read-only.
+  dependents: Dependent[];
 }
 
 interface Challenge {
@@ -156,7 +159,40 @@ function seedMember(): Person {
           receiptNo: 'RCT-2025-000014',
         },
       ],
+      // A minor she guards, whose account she may read.
+      'acc-zaid-msa': [
+        {
+          id: 't3',
+          occurredAt: daysAgo(120),
+          direction: 'credit',
+          amount: '750.00',
+          description: 'Deposit',
+          receiptNo: 'RCT-2025-000221',
+        },
+      ],
     },
+    dependents: [
+      {
+        id: 'minor-ab0007',
+        kind: 'member',
+        memberNo: 'AB0007',
+        name: 'Zaid Peerally',
+        relationship: 'Mother',
+        status: 'active',
+        accounts: [
+          {
+            id: 'acc-zaid-msa',
+            accountNo: 'MSA-000007',
+            typeCode: 'msa',
+            typeName: 'Multiplier Savings Account',
+            category: 'savings',
+            status: 'active',
+            openedAt: daysAgo(120),
+            balance: '750.00',
+          },
+        ],
+      },
+    ],
     documents: [
       {
         id: 'd1',
@@ -237,6 +273,7 @@ export function createMockTransport(): Transport {
         },
         accounts: [],
         transactions: {},
+        dependents: [],
         documents: [],
       };
       people.set(mobile, person);
@@ -291,6 +328,7 @@ export function createMockTransport(): Transport {
           accounts: [],
           transactions: {},
           documents: [],
+          dependents: [],
         };
         people.set(key, persona);
       }
@@ -559,6 +597,26 @@ export function createMockTransport(): Transport {
           throw fail('not_found', 'No such account.');
         }
         return person.transactions[id] ?? [];
+      },
+    },
+    {
+      method: 'GET',
+      pattern: /^\/api\/v1\/member\/me\/dependents$/,
+      handle: (_, __, options) => personForSubject(requireSession(options)).dependents,
+    },
+    {
+      method: 'GET',
+      pattern:
+        /^\/api\/v1\/member\/me\/dependents\/([^/]+)\/accounts\/([^/]+)\/transactions$/,
+      handle: ([, dependentId, accountId], __, options) => {
+        const person = personForSubject(requireSession(options));
+        const minor = person.dependents.find(d => d.id === dependentId);
+        // A minor not guarded, or an account that is not that minor's: the
+        // same not_found, as the backend gives (member/dependents).
+        if (!minor || !minor.accounts.some(a => a.id === accountId)) {
+          throw fail('not_found', 'No such account.');
+        }
+        return person.transactions[accountId] ?? [];
       },
     },
     {

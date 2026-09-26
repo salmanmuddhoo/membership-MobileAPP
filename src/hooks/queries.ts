@@ -9,6 +9,9 @@ export const keys = {
   me: ['me'] as const,
   accounts: ['accounts'] as const,
   transactions: (id: string) => ['accounts', id, 'transactions'] as const,
+  dependents: ['dependents'] as const,
+  dependentTransactions: (dependentId: string, accountId: string) =>
+    ['dependents', dependentId, 'accounts', accountId, 'transactions'] as const,
   documents: ['documents'] as const,
   applications: ['applications'] as const,
   application: (id: string) => ['applications', id] as const,
@@ -42,6 +45,24 @@ export function useTransactions(accountId: string) {
     queryKey: keys.transactions(accountId),
     queryFn: () => withToken(t => api.transactions(t, accountId)),
     enabled: !!session && !!accountId,
+  });
+}
+
+export function useDependents() {
+  const { withToken, session } = useAuth();
+  return useQuery({
+    queryKey: keys.dependents,
+    queryFn: () => withToken(t => api.dependents(t)),
+    enabled: !!session,
+  });
+}
+
+export function useDependentTransactions(dependentId: string, accountId: string) {
+  const { withToken, session } = useAuth();
+  return useQuery({
+    queryKey: keys.dependentTransactions(dependentId, accountId),
+    queryFn: () => withToken(t => api.dependentTransactions(t, dependentId, accountId)),
+    enabled: !!session && !!dependentId && !!accountId,
   });
 }
 

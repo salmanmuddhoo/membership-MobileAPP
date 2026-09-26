@@ -3,7 +3,7 @@ import React from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { ApiError } from '@/api';
 import { useAuth } from '@/auth/AuthContext';
-import { useAccounts, useApplications, useMe } from '@/hooks/queries';
+import { useAccounts, useApplications, useDependents, useMe } from '@/hooks/queries';
 import { formatDate, formatMoney, statusLabel } from '@/lib/format';
 import { Badge, Banner, Body, Button, Card, Heading, Row, Spacer } from '@/ui';
 import { colors, spacing, type } from '@/ui/theme';
@@ -14,6 +14,7 @@ export default function Home() {
   const me = useMe();
   const accounts = useAccounts();
   const applications = useApplications();
+  const dependents = useDependents();
 
   const refreshing = me.isRefetching || accounts.isRefetching;
   const refresh = () => {
@@ -84,6 +85,16 @@ export default function Home() {
             </Card>
           ))}
           {accounts.data && accounts.data.length === 0 ? <Body muted>No accounts yet.</Body> : null}
+        </>
+      ) : null}
+
+      {isMember && dependents.data && dependents.data.length > 0 ? (
+        <>
+          <Heading>Minors in your care</Heading>
+          <Card onPress={() => router.push('/minors')}>
+            <Body>{dependents.data.length === 1 ? dependents.data[0].name : `${dependents.data.length} minors`}</Body>
+            <Text style={type.small}>See their accounts and balances</Text>
+          </Card>
         </>
       ) : null}
 

@@ -140,6 +140,38 @@ test('the app offers individual only; another type is refused', async () => {
   assert.equal(app.membershipTypeCode, 'individual');
 });
 
+test('a guardian sees the accounts and balances of the minors they guard', async () => {
+  const api = memberApi(createMockTransport());
+  const token = (await linkMember(api)).accessToken;
+
+  const minors = await api.dependents(token);
+  assert.equal(minors.length, 1);
+  const zaid = minors[0];
+  assert.equal(zaid.name, 'Zaid Peerally');
+  assert.equal(zaid.relationship, 'Mother');
+  assert.equal(zaid.accounts.length, 1);
+  assert.equal(zaid.accounts[0].balance, '750.00');
+
+  // The entries behind that balance are readable.
+  const tx = await api.dependentTransactions(token, zaid.id, zaid.accounts[0].id);
+  assert.deepEqual(
+    tx.map(t => t.amount),
+    ['750.00']
+  );
+
+  // An account that is not this minor's is not_found, the same as the backend.
+  await assert.rejects(api.dependentTransactions(token, zaid.id, 'acc-msa'), (e: unknown) => {
+    assert.ok(e instanceof ApiError && e.code === 'not_found');
+    return true;
+  });
+});
+
+test('a new applicant, who guards nobody, has no dependents', async () => {
+  const api = memberApi(createMockTransport());
+  const token = (await signUp(api, '5991 2323')).accessToken;
+  assert.deepEqual(await api.dependents(token), []);
+});
+
 test('a new applicant applies end to end', async () => {
   const api = memberApi(createMockTransport());
   const session = await signUp(api, '5999 0000');
