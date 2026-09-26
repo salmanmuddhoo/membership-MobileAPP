@@ -40,6 +40,11 @@ export default function RootLayout() {
               <Stack.Screen name="(member)" options={{ headerShown: false }} />
               <Stack.Screen name="(apply)" options={{ headerShown: false }} />
               <Stack.Screen name="account/[id]" options={{ title: 'Account' }} />
+              <Stack.Screen name="minors" options={{ title: 'Minors in my care' }} />
+              <Stack.Screen
+                name="dependent/[dependentId]/account/[accountId]"
+                options={{ title: 'Account' }}
+              />
               <Stack.Screen name="details-edit" options={{ title: 'My details' }} />
             </Stack>
           </AuthProvider>

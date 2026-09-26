@@ -169,6 +169,19 @@ export interface AccountSummary {
   balance: string | null;
 }
 
+// A minor the signed-in member is guardian of, with the minor's accounts. The
+// member sees these read-only alongside their own (see member/dependents on
+// the backend).
+export interface Dependent {
+  id: string;
+  kind: 'member' | 'customer';
+  memberNo: string | null;
+  name: string;
+  relationship: string | null;
+  status: string;
+  accounts: AccountSummary[];
+}
+
 export interface AccountTransaction {
   id: string;
   occurredAt: string;
