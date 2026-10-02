@@ -4,10 +4,11 @@ The member-facing app for Al Barakah MCSL, on iOS and Android from one
 codebase. Two jobs:
 
 1. **An existing member** links the phone to their membership once — NIC
-   and AB Number, then a code sent to the mobile on their record — and from
-   then on the stored session gets them in. They see their membership,
-   accounts and documents, and capture or correct their own details, which
-   staff verify before the record changes.
+   and AB Number, then a code sent to the mobile on their record — chooses
+   a PIN, and from then on the stored session and that PIN get them in.
+   They see their membership, their accounts and those of any minor in
+   their care, and capture or correct their own details, which staff
+   verify before the record changes.
 2. **A new applicant** applies to become a member from their phone: the same
    form the officer captures, the documents photographed on the spot, saved
    as they go and submitted into the same workflow.
@@ -59,9 +60,10 @@ native code, so no Xcode or Android Studio project is checked in.
 - **React Query** for server state, so every screen has the same loading,
   error and pull-to-refresh behaviour and a mutation invalidates exactly
   what it changed.
-- **SecureStore** for the session token (keychain / keystore), never
-  AsyncStorage. AsyncStorage holds only what was typed into a form since
-  the last save.
+- **SecureStore** for the session token and the PIN record (keychain /
+  keystore), never AsyncStorage. AsyncStorage holds only what was typed
+  into a form since the last save. Uninstalling the app clears both, so a
+  reinstalled app links again and sets a new PIN.
 - **No UI library.** A dozen plain React Native controls in `src/ui`. Less
   to look wrong when the platforms change.
 
@@ -156,13 +158,15 @@ if the decision goes the other way.
 
 ## Screens, in order
 
-Welcome → Link my membership (NIC + AB Number) → Code → **Home** (member number, balances,
-pending update) · **Accounts** → account → transactions · **Applications**
-(status, returned comments) · **My details** (every section, documents on
-file, expiring documents) → Complete / update my details → sent for
-verification.
+Welcome → Link my membership (NIC + AB Number) → Code → Choose a PIN →
+**Home** (what the Society is promoting, member number, balances, minors in
+your care, pending update) · **Accounts** → account → transactions · **My
+details** (every section) → Complete / update my details → sent for
+verification. Opening the app again asks for the PIN, never the code; five
+wrong PINs sign the phone out. A member has no Applications tab — that is
+for an applicant.
 
-Become a member (mobile) → Code → Apply → choose membership type (fees, documents listed) → one step per
+Become a member (mobile) → Code → Choose a PIN → Apply → choose membership type (fees, documents listed) → one step per
 party → Documents (camera / photo / PDF, uploaded through the brokered
 session) → Review (every gap named, Edit links) → Submitted (reference,
 what happens next, history).

@@ -12,7 +12,7 @@ export const keys = {
   dependents: ['dependents'] as const,
   dependentTransactions: (dependentId: string, accountId: string) =>
     ['dependents', dependentId, 'accounts', accountId, 'transactions'] as const,
-  documents: ['documents'] as const,
+  promotions: ['promotions'] as const,
   applications: ['applications'] as const,
   application: (id: string) => ['applications', id] as const,
 };
@@ -66,12 +66,14 @@ export function useDependentTransactions(dependentId: string, accountId: string)
   });
 }
 
-export function useDocuments() {
+// What the Society is promoting right now: the cards on the home screen.
+export function usePromotions() {
   const { withToken, session } = useAuth();
   return useQuery({
-    queryKey: keys.documents,
-    queryFn: () => withToken(t => api.documents(t)),
+    queryKey: keys.promotions,
+    queryFn: () => withToken(t => api.promotions(t)),
     enabled: !!session,
+    staleTime: 5 * 60_000,
   });
 }
 

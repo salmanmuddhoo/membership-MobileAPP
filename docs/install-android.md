@@ -48,7 +48,9 @@ builds an installable APK on GitHub's servers.
    installed"; on others the install appears to do nothing and the old
    version simply keeps running, so everything the new build changed looks
    like it did not work. The run's summary page says which kind of build
-   you downloaded.
+   you downloaded. Uninstalling also clears the phone's keychain, so the
+   reinstalled app asks the member to link again and choose a new PIN —
+   that is the uninstall, not a fault in the app.
 7. On the phone, open the file. Android will ask to **allow installs from
    this source** the first time (Settings → Apps → Special access → Install
    unknown apps, or just follow the prompt). Allow it, then **Install**.

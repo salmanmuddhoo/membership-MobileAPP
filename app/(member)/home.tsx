@@ -3,9 +3,10 @@ import React from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { ApiError } from '@/api';
 import { useAuth } from '@/auth/AuthContext';
-import { useAccounts, useApplications, useDependents, useMe } from '@/hooks/queries';
+import { useAccounts, useApplications, useDependents, useMe, usePromotions } from '@/hooks/queries';
 import { formatDate, formatMoney, statusLabel } from '@/lib/format';
 import { Badge, Banner, Body, Button, Card, Heading, Row, Spacer } from '@/ui';
+import { PromotionCarousel } from '@/ui/Carousel';
 import { colors, spacing, type } from '@/ui/theme';
 
 export default function Home() {
@@ -15,6 +16,7 @@ export default function Home() {
   const accounts = useAccounts();
   const applications = useApplications();
   const dependents = useDependents();
+  const promotions = usePromotions();
 
   const refreshing = me.isRefetching || accounts.isRefetching;
   const refresh = () => {
@@ -43,6 +45,8 @@ export default function Home() {
         </View>
       ) : null}
       {problem ? <Banner tone="danger">{problem}</Banner> : null}
+
+      {promotions.data && promotions.data.length > 0 ? <PromotionCarousel items={promotions.data} /> : null}
 
       {profile?.pendingUpdate ? (
         <Banner tone="info" title="Details update pending">

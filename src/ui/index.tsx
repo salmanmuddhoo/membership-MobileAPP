@@ -14,6 +14,7 @@ import {
   View,
   type StyleProp,
   type TextInputProps,
+  type TextStyle,
   type ViewStyle,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -183,6 +184,7 @@ export function Button({
   disabled,
   loading,
   style,
+  textStyle,
 }: {
   title: string;
   onPress: () => void;
@@ -190,6 +192,7 @@ export function Button({
   disabled?: boolean;
   loading?: boolean;
   style?: StyleProp<ViewStyle>;
+  textStyle?: StyleProp<TextStyle>;
 }) {
   const off = disabled || loading;
   return (
@@ -209,7 +212,7 @@ export function Button({
       {loading ? (
         <ActivityIndicator color={variant === 'primary' || variant === 'danger' ? '#fff' : colors.primary} />
       ) : (
-        <Text style={[styles.buttonText, styles[`buttonText_${variant}`]]}>{title}</Text>
+        <Text style={[styles.buttonText, styles[`buttonText_${variant}`], textStyle]}>{title}</Text>
       )}
     </Pressable>
   );

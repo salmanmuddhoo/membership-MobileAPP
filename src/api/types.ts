@@ -76,6 +76,22 @@ export interface Reference {
   membershipTypes: MembershipType[];
 }
 
+// A card on the home screen: something the Society is promoting. Written
+// by an administrator on the web application's Member app page; the app
+// shows whatever is live, in order, and nothing when there is nothing.
+export interface Promotion {
+  id: string;
+  title: string;
+  body: string;
+  // A picture across the top of the card, if there is one (https).
+  imageUrl: string | null;
+  // Where the card goes when tapped, if anywhere (https or tel/mailto).
+  linkUrl: string | null;
+  linkLabel: string | null;
+  // The card's background, as #rrggbb; the app's own dark green otherwise.
+  accent: string | null;
+}
+
 // ---------------------------------------------------------------------------
 // Identity. Four different things, kept apart on purpose:
 //

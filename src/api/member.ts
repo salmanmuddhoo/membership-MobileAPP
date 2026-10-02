@@ -12,6 +12,7 @@ import type {
   MemberProfile,
   OtpChallenge,
   PartyValues,
+  Promotion,
   Reference,
   Session,
   UploadTicket,
@@ -82,6 +83,9 @@ export function memberApi(transport: Transport) {
       ),
 
     documents: (token: string) => call<FiledDocument[]>('/me/documents', { token }),
+
+    // What is being promoted right now, in the order to show it.
+    promotions: (token: string) => call<Promotion[]>('/promotions', { token }),
 
     // --- applications ----------------------------------------------------
     applications: (token: string) => call<Application[]>('/applications', { token }),
