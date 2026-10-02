@@ -2,13 +2,20 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Redirect, Tabs } from 'expo-router';
 import React from 'react';
 import { useAuth } from '@/auth/AuthContext';
+import { useMe } from '@/hooks/queries';
 import { Loading } from '@/ui';
 import { colors } from '@/ui/theme';
 
 export default function MemberLayout() {
   const { ready, session } = useAuth();
+  const me = useMe();
   if (!ready) return <Loading />;
   if (!session) return <Redirect href="/(auth)/welcome" />;
+
+  // A member has nothing to apply for: the tab is for an applicant (and a
+  // non-member account holder) and appears once we know that is who this
+  // is, rather than flashing at a member while the profile loads.
+  const showApplications = !!me.data && me.data.kind !== 'member';
 
   return (
     <Tabs
@@ -39,6 +46,7 @@ export default function MemberLayout() {
         name="applications"
         options={{
           title: 'Applications',
+          href: showApplications ? undefined : null,
           tabBarIcon: ({ color, size }) => <Ionicons name="document-text-outline" color={color} size={size} />,
         }}
       />

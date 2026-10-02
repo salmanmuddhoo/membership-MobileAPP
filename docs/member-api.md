@@ -97,6 +97,23 @@ plain storage, and cleared on sign-out or when a refresh is refused. The
 NIC and AB Number are never stored on the device; the internal `memberId`
 is never sent to it.
 
+The refresh token is single-use, and a screen fires several requests at
+once, so when the access token has expired they all come back 401
+together. The app shares ONE refresh between them (`AuthContext.renew`);
+a second refresh with the same token would be refused and would sign the
+member out for nothing. A refresh that fails on the network keeps the
+session for the next attempt; only a refusal clears it.
+
+**The PIN.** After verification the person chooses a six-digit PIN, kept
+on the device as a salted digest next to the session (`src/auth/pin.ts`).
+A cold start, and a return from more than two minutes in the background,
+ask for it before anything is shown. It never goes to the server and
+never replaces the session: five wrong PINs sign the device out (the
+session is revoked through `/auth/logout`) and the way back in is to link
+again with a code to the registered mobile. "Forgotten your PIN" does the
+same. A phone that updates from a build without PINs is asked to choose
+one on its next start.
+
 ## Tables the web application needs
 
 ```sql
@@ -183,7 +200,8 @@ missing document — the app folds these onto the fields by that key.
 | PUT | `/me/details` `{ parties }` | Creates a `member_details_request`. 422 on a mandatory field left blank or a phone that cannot be placed (`toInternational`); 409 if one is already pending; 403 for a non-member. The applicant's `mobile` is ignored if it differs from the session's — the registered number changes at a branch. Audit: `member.details.requested`. |
 | GET | `/me/accounts` | `AccountSummary[]` for `member_id` (or `customer_id`). `balance` is a decimal string, **null until the ledger exists** — today `transactionsForAccount` knows only the opening payment and any refund, so the balance is that sum, or null if the business would rather show nothing than a partial figure. |
 | GET | `/me/accounts/{id}/transactions` | `AccountTransaction[]`, oldest first, from `transactionsForAccount`. 404 unless the account belongs to the caller. |
-| GET | `/me/documents` | `FiledDocument[]` from `documentsForMember`: name, status, filed date, expiry. No download URL — `view-url` stays staff-only until a member-facing viewer is decided. |
+| GET | `/me/documents` | `FiledDocument[]` from `documentsForMember`: name, status, filed date, expiry. No download URL — `view-url` stays staff-only until a member-facing viewer is decided. The app no longer shows these; the endpoint stays for the day it does. |
+| GET | `/promotions` | `Promotion[]`: the cards on the home screen, live ones only, in order — `title`, `body`, `imageUrl`, `linkUrl`, `linkLabel`, `accent`. Written by an administrator on the web application's **Configuration → Member app** page. Any session, applicant included. |
 
 ### Applications (`caller: 'member'`)
 

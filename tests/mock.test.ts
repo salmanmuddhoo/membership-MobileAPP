@@ -254,3 +254,14 @@ test('a member capturing details must fill every mandatory field', async () => {
   const after = await api.me(session.accessToken);
   assert.equal(after.pendingUpdate?.id, request.id);
 });
+
+test('the home screen cards: what is being promoted, to anyone signed in', async () => {
+  const api = memberApi(createMockTransport());
+  await assert.rejects(api.promotions('not-a-token'), (e: unknown) => e instanceof ApiError && e.code === 'unauthenticated');
+  const member = await linkMember(api);
+  const cards = await api.promotions(member.accessToken);
+  assert.ok(cards.length >= 1);
+  assert.ok(cards.every(c => c.title && /^#[0-9a-f]{6}$/i.test(c.accent ?? '#000000')));
+  const applicant = await signUp(api, '5999 1111');
+  assert.deepEqual(await api.promotions(applicant.accessToken), cards);
+});

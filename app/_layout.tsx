@@ -1,11 +1,13 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import React from 'react';
+import React, { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ApiError } from '@/api';
-import { AuthProvider } from '@/auth/AuthContext';
+import { AuthProvider, useAuth } from '@/auth/AuthContext';
+import { LockGate } from '@/auth/LockGate';
 import { colors } from '@/ui/theme';
 
 const queryClient = new QueryClient({
@@ -19,6 +21,20 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+// The native splash (the emblem on green) stays up until the keychain has
+// been read, so the app opens straight onto the lock or the home screen —
+// never a blank frame and a spinner in between.
+SplashScreen.preventAutoHideAsync().catch(() => undefined);
+SplashScreen.setOptions({ duration: 400, fade: true });
+
+function HideSplashWhenReady() {
+  const { ready } = useAuth();
+  useEffect(() => {
+    if (ready) SplashScreen.hideAsync().catch(() => undefined);
+  }, [ready]);
+  return null;
+}
 
 export default function RootLayout() {
   return (
@@ -47,6 +63,8 @@ export default function RootLayout() {
               />
               <Stack.Screen name="details-edit" options={{ title: 'My details' }} />
             </Stack>
+            <LockGate />
+            <HideSplashWhenReady />
           </AuthProvider>
         </QueryClientProvider>
       </SafeAreaProvider>

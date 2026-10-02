@@ -1,22 +1,21 @@
 import { useRouter } from 'expo-router';
 import React from 'react';
-import { RefreshControl, ScrollView, StyleSheet, Text } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet } from 'react-native';
 import { ApiError, type FieldSubject } from '@/api';
 import { useAuth } from '@/auth/AuthContext';
 import { partyTitle, visibleFields } from '@/forms/validate';
-import { useDocuments, useMe, useReference } from '@/hooks/queries';
+import { useMe, useReference } from '@/hooks/queries';
 import { confirmDialog } from '@/lib/dialog';
 import { forDisplay } from '@/lib/phone';
-import { expiresWithin, formatDate, statusLabel } from '@/lib/format';
+import { formatDate, statusLabel } from '@/lib/format';
 import { Badge, Banner, Body, Button, Card, Empty, Heading, Loading, Row, Spacer } from '@/ui';
-import { colors, spacing, type } from '@/ui/theme';
+import { colors, spacing } from '@/ui/theme';
 
 export default function Profile() {
   const router = useRouter();
   const { session, signOut } = useAuth();
   const me = useMe();
   const reference = useReference();
-  const documents = useDocuments();
 
   const profile = me.data;
   const membershipType = reference.data?.membershipTypes.find(
@@ -104,22 +103,6 @@ export default function Profile() {
               })}
             </Card>
           </React.Fragment>
-        );
-      })}
-
-      <Heading>Documents on file</Heading>
-      {documents.data?.length === 0 ? <Body muted>Nothing on file.</Body> : null}
-      {documents.data?.map(d => {
-        const expiring = expiresWithin(d.expiresAt, 60);
-        return (
-          <Card key={d.id} style={{ paddingVertical: spacing.md }}>
-            <Text style={type.body}>{d.documentName}</Text>
-            <Text style={type.small}>
-              {statusLabel(d.status)} · filed {formatDate(d.filedAt)}
-              {d.expiresAt ? ` · expires ${formatDate(d.expiresAt)}` : ''}
-            </Text>
-            {expiring ? <Badge tone="warning">Expires soon — bring a new one to a branch</Badge> : null}
-          </Card>
         );
       })}
 

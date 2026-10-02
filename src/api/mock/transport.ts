@@ -25,6 +25,7 @@ import type {
   MemberProfile,
   MembershipType,
   PartyValues,
+  Promotion,
   Session,
 } from '../types';
 import { MEMBERSHIP_TYPES } from './reference';
@@ -221,6 +222,37 @@ function seedMember(): Person {
     ],
   };
 }
+
+// What the Society is promoting in the demo: the cards on the home screen.
+const PROMOTIONS: Promotion[] = [
+  {
+    id: 'promo-1',
+    title: 'Hajj & Umrah Savings Account',
+    body: 'Save a little every month towards the journey of a lifetime. Open one at any branch.',
+    imageUrl: null,
+    linkUrl: null,
+    linkLabel: null,
+    accent: '#0B443A',
+  },
+  {
+    id: 'promo-2',
+    title: 'Annual General Meeting — 28 November',
+    body: 'Every member has a voice. Join us at the Port Louis hall from 9:30.',
+    imageUrl: null,
+    linkUrl: 'https://albarakah.mu/agm',
+    linkLabel: 'See the agenda',
+    accent: '#1F3A5F',
+  },
+  {
+    id: 'promo-3',
+    title: 'Refer a friend',
+    body: 'Know someone who would benefit from membership? Bring them to a branch with their NIC.',
+    imageUrl: null,
+    linkUrl: null,
+    linkLabel: null,
+    accent: '#5C3D1E',
+  },
+];
 
 export function createMockTransport(): Transport {
   const people = new Map<string, Person>();
@@ -623,6 +655,14 @@ export function createMockTransport(): Transport {
       method: 'GET',
       pattern: /^\/api\/v1\/member\/me\/documents$/,
       handle: (_, __, options) => personForSubject(requireSession(options)).documents,
+    },
+    {
+      method: 'GET',
+      pattern: /^\/api\/v1\/member\/promotions$/,
+      handle: (_, __, options) => {
+        requireSession(options);
+        return PROMOTIONS;
+      },
     },
     {
       method: 'GET',
