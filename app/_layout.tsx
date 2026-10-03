@@ -8,6 +8,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ApiError } from '@/api';
 import { AuthProvider, useAuth } from '@/auth/AuthContext';
 import { LockGate } from '@/auth/LockGate';
+import { BalanceVisibilityProvider } from '@/store/balances';
 import { colors } from '@/ui/theme';
 
 const queryClient = new QueryClient({
@@ -42,6 +43,7 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
+            <BalanceVisibilityProvider>
             <StatusBar style="light" />
             <Stack
               screenOptions={{
@@ -56,7 +58,6 @@ export default function RootLayout() {
               <Stack.Screen name="(member)" options={{ headerShown: false }} />
               <Stack.Screen name="(apply)" options={{ headerShown: false }} />
               <Stack.Screen name="account/[id]" options={{ title: 'Account' }} />
-              <Stack.Screen name="minors" options={{ title: 'Minors in my care' }} />
               <Stack.Screen
                 name="dependent/[dependentId]/account/[accountId]"
                 options={{ title: 'Account' }}
@@ -65,6 +66,7 @@ export default function RootLayout() {
             </Stack>
             <LockGate />
             <HideSplashWhenReady />
+            </BalanceVisibilityProvider>
           </AuthProvider>
         </QueryClientProvider>
       </SafeAreaProvider>

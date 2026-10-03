@@ -31,6 +31,15 @@ export function visibleFields(
     .sort((a, b) => a.sortOrder - b.sortOrder);
 }
 
+// What a member sees and edits of their own record from the phone: the
+// applicant's own details and, for a minor, the guardian's. Employment and
+// nominee details stay a branch matter (officer direction).
+export const MEMBER_SUBJECTS: readonly FieldSubject[] = ['applicant', 'guardian', 'beneficiary'];
+
+export function isMemberSubject(subject: FieldSubject): boolean {
+  return MEMBER_SUBJECTS.includes(subject);
+}
+
 export function subjectsOf(type: MembershipType): FieldSubject[] {
   const seen: FieldSubject[] = [];
   for (const f of type.fields) {

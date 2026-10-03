@@ -201,7 +201,7 @@ missing document — the app folds these onto the fields by that key.
 | GET | `/me/accounts` | `AccountSummary[]` for `member_id` (or `customer_id`). `balance` is a decimal string, **null until the ledger exists** — today `transactionsForAccount` knows only the opening payment and any refund, so the balance is that sum, or null if the business would rather show nothing than a partial figure. |
 | GET | `/me/accounts/{id}/transactions` | `AccountTransaction[]`, oldest first, from `transactionsForAccount`. 404 unless the account belongs to the caller. |
 | GET | `/me/documents` | `FiledDocument[]` from `documentsForMember`: name, status, filed date, expiry. No download URL — `view-url` stays staff-only until a member-facing viewer is decided. The app no longer shows these; the endpoint stays for the day it does. |
-| GET | `/promotions` | `Promotion[]`: the cards on the home screen, live ones only, in order — `title`, `body`, `imageUrl`, `linkUrl`, `linkLabel`, `accent`. Written by an administrator on the web application's **Configuration → Member app** page. Any session, applicant included. |
+| GET | `/promotions` | `Promotion[]`: the cards on the home screen, live ones only, in order — `title`, `body`, `imageUrl`, `linkUrl`, `linkLabel`, `accent`. Written by an administrator on the web application's **Configuration → Member app** page. Any session, applicant included. The phone shows the picture alone (the title and text are the administrator's label and the screen reader's description), so a card without a picture is not shown. |
 
 ### Applications (`caller: 'member'`)
 
