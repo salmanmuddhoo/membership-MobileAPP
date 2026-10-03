@@ -10,7 +10,8 @@ import {
 import { ApiError } from '@/api';
 import { useDependents, useDependentTransactions } from '@/hooks/queries';
 import { formatDate, formatMoney } from '@/lib/format';
-import { Banner, Body, Card, Empty, Heading, Loading, Row } from '@/ui';
+import { Banner, Body, Card, Empty, Heading, Loading } from '@/ui';
+import { Balance, BalanceToggle } from '@/ui/Balance';
 import { colors, spacing, type } from '@/ui/theme';
 
 // One guarded minor's account: balance and the entries behind it, read-only.
@@ -39,13 +40,14 @@ export default function DependentAccount() {
         />
       }
     >
-      <Text style={type.small}>{minor?.name}</Text>
-      <Text style={type.subheading}>{account.typeName}</Text>
-      <Text style={styles.balance}>{formatMoney(account.balance)}</Text>
-      <Card>
-        <Row label="Account No." value={account.accountNo} />
-        <Row label="Opened" value={formatDate(account.openedAt)} last />
-      </Card>
+      <View style={styles.head}>
+        <View style={{ flex: 1 }}>
+          <Text style={type.small}>{minor?.name} · minor in your care</Text>
+          <Text style={type.subheading}>{account.typeName}</Text>
+          <Balance amount={account.balance} style={styles.balance} />
+        </View>
+        <BalanceToggle />
+      </View>
       <Heading>Transactions</Heading>
       {tx.error ? (
         <Banner tone="danger">
@@ -82,6 +84,7 @@ export default function DependentAccount() {
 
 const styles = StyleSheet.create({
   content: { padding: spacing.lg, paddingBottom: spacing.xxl },
+  head: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   balance: { ...type.title, color: colors.primary, marginVertical: spacing.sm },
   tx: { paddingVertical: spacing.md },
   txRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },

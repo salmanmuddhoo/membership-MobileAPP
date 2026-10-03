@@ -1,13 +1,21 @@
-import { useRouter } from 'expo-router';
+// The landing page: what the Society is promoting, the member's money in
+// one figure, and a way to every part of the app (officer direction — a
+// promotional page with shortcuts, not a second accounts screen).
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { useRouter, type Href } from 'expo-router';
 import React from 'react';
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { ApiError } from '@/api';
 import { useAuth } from '@/auth/AuthContext';
 import { useAccounts, useApplications, useDependents, useMe, usePromotions } from '@/hooks/queries';
-import { formatDate, formatMoney, statusLabel } from '@/lib/format';
-import { Badge, Banner, Body, Button, Card, Heading, Row, Spacer } from '@/ui';
-import { PromotionCarousel } from '@/ui/Carousel';
-import { colors, spacing, type } from '@/ui/theme';
+import { formatDate, statusLabel } from '@/lib/format';
+import { sumMoney } from '@/lib/money';
+import { Badge, Banner, Body, Button, Card, Spacer } from '@/ui';
+import { Balance, BalanceToggle } from '@/ui/Balance';
+import { PromotionCarousel, showablePromotions } from '@/ui/Carousel';
+import { colors, radius, spacing, type } from '@/ui/theme';
+
+type Shortcut = { title: string; icon: React.ComponentProps<typeof Ionicons>['name']; href: Href };
 
 export default function Home() {
   const router = useRouter();
@@ -23,12 +31,26 @@ export default function Home() {
     me.refetch();
     accounts.refetch();
     applications.refetch();
+    promotions.refetch();
   };
 
   const profile = me.data;
   const isMember = profile?.kind === 'member';
+  const hasAccounts = profile?.kind === 'member' || profile?.kind === 'customer';
   const openApplication = applications.data?.find(a => !['approved', 'rejected'].includes(a.status));
   const problem = me.error instanceof ApiError ? me.error.userMessage : null;
+  const total = accounts.data ? sumMoney(accounts.data.map(a => a.balance)) : null;
+  const cards = promotions.data ? showablePromotions(promotions.data) : [];
+
+  const shortcuts: Shortcut[] = [];
+  if (hasAccounts) shortcuts.push({ title: 'Accounts', icon: 'wallet-outline', href: '/(member)/accounts' });
+  if (isMember) shortcuts.push({ title: 'My card', icon: 'card-outline', href: '/(member)/card' });
+  if (hasAccounts) shortcuts.push({ title: 'Transact', icon: 'swap-horizontal-outline', href: '/(member)/transact' });
+  if (dependents.data && dependents.data.length > 0) {
+    shortcuts.push({ title: 'Minors', icon: 'people-outline', href: '/(member)/accounts' });
+  }
+  if (profile && !isMember) shortcuts.push({ title: 'Applications', icon: 'document-text-outline', href: '/(member)/applications' });
+  shortcuts.push({ title: 'My details', icon: 'person-circle-outline', href: '/(member)/profile' });
 
   return (
     <ScrollView
@@ -43,10 +65,31 @@ export default function Home() {
           <Text style={styles.memberNoValue}>{profile.memberNo}</Text>
           <Badge tone={profile.status === 'active' ? 'success' : 'warning'}>{statusLabel(profile.status)}</Badge>
         </View>
-      ) : null}
+      ) : (
+        <Spacer />
+      )}
       {problem ? <Banner tone="danger">{problem}</Banner> : null}
 
-      {promotions.data && promotions.data.length > 0 ? <PromotionCarousel items={promotions.data} /> : null}
+      {hasAccounts ? (
+        <Pressable
+          onPress={() => router.push('/(member)/accounts')}
+          accessibilityRole="button"
+          style={({ pressed }) => [styles.total, pressed && { opacity: 0.9 }]}
+        >
+          <View style={styles.totalHead}>
+            <Text style={styles.totalLabel}>Total balance</Text>
+            <BalanceToggle color="rgba(255,255,255,0.9)" />
+          </View>
+          <Balance amount={accounts.data ? total : null} style={styles.totalValue} />
+          <Text style={styles.totalHint}>
+            {accounts.data
+              ? `Across ${accounts.data.length} account${accounts.data.length === 1 ? '' : 's'}`
+              : 'Loading…'}
+          </Text>
+        </Pressable>
+      ) : null}
+
+      <PromotionCarousel items={cards} />
 
       {profile?.pendingUpdate ? (
         <Banner tone="info" title="Details update pending">
@@ -79,39 +122,21 @@ export default function Home() {
         </Card>
       ) : null}
 
-      {isMember ? (
-        <>
-          <Heading>Accounts</Heading>
-          {accounts.data?.map(a => (
-            <Card key={a.id} onPress={() => router.push({ pathname: '/account/[id]', params: { id: a.id } })}>
-              <Row label={a.typeName} value={<Text style={styles.balance}>{formatMoney(a.balance)}</Text>} />
-              <Row label="Account No." value={a.accountNo} last />
-            </Card>
-          ))}
-          {accounts.data && accounts.data.length === 0 ? <Body muted>No accounts yet.</Body> : null}
-        </>
-      ) : null}
-
-      {isMember && dependents.data && dependents.data.length > 0 ? (
-        <>
-          <Heading>Minors in your care</Heading>
-          <Card onPress={() => router.push('/minors')}>
-            <Body>{dependents.data.length === 1 ? dependents.data[0].name : `${dependents.data.length} minors`}</Body>
-            <Text style={type.small}>See their accounts and balances</Text>
-          </Card>
-        </>
-      ) : null}
-
-      {isMember ? (
-        <>
-          <Heading>Membership</Heading>
-          <Card>
-            <Row label="Type" value={profile?.membershipType?.name ?? '—'} />
-            <Row label="Member since" value={formatDate(profile?.joinedAt)} last />
-          </Card>
-          <Button title="Check or update my details" variant="secondary" onPress={() => router.push('/(member)/profile')} />
-        </>
-      ) : null}
+      <View style={styles.grid}>
+        {shortcuts.map(s => (
+          <Pressable
+            key={s.title}
+            onPress={() => router.push(s.href)}
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.shortcut, pressed && styles.shortcutPressed]}
+          >
+            <View style={styles.shortcutIcon}>
+              <Ionicons name={s.icon} size={24} color={colors.primary} />
+            </View>
+            <Text style={styles.shortcutText}>{s.title}</Text>
+          </Pressable>
+        ))}
+      </View>
     </ScrollView>
   );
 }
@@ -127,5 +152,36 @@ const styles = StyleSheet.create({
   },
   memberNoLabel: { ...type.small },
   memberNoValue: { ...type.subheading, color: colors.primary },
-  balance: { ...type.subheading, color: colors.primary },
+  total: {
+    backgroundColor: colors.primary,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+  },
+  totalHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  totalLabel: { color: 'rgba(255,255,255,0.85)', fontSize: 14, fontWeight: '600' },
+  totalValue: { color: '#fff', fontSize: 32, fontWeight: '700', marginTop: spacing.xs },
+  totalHint: { color: 'rgba(255,255,255,0.75)', fontSize: 13, marginTop: spacing.xs },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginTop: spacing.sm },
+  shortcut: {
+    width: '30%',
+    flexGrow: 1,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  shortcutPressed: { backgroundColor: colors.primarySoft },
+  shortcutIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  shortcutText: { ...type.label, textAlign: 'center' },
 });

@@ -11,7 +11,7 @@ import { Text } from 'react-native';
 import { ApiError } from '@/api';
 import { PartyForm } from '@/forms/PartyForm';
 import { usePartyValues } from '@/forms/usePartyValues';
-import { partyTitle, subjectsOf } from '@/forms/validate';
+import { isMemberSubject, partyTitle, subjectsOf, validateAll } from '@/forms/validate';
 import { useMe, useReference, useSubmitDetails } from '@/hooks/queries';
 import { notify } from '@/lib/dialog';
 import { Banner, Body, Button, Empty, Heading, Loading, Screen } from '@/ui';
@@ -38,13 +38,19 @@ function DetailsForm({
   const submit = useSubmitDetails();
   const [problem, setProblem] = useState<string | null>(null);
   const form = usePartyValues(membershipType, initial);
-  const subjects = subjectsOf(membershipType);
+  // Employment and nominee details are not the member's to edit here; they
+  // are sent back exactly as they are on record, and only what is shown is
+  // checked.
+  const subjects = subjectsOf(membershipType).filter(isMemberSubject);
+  const shown = form.parties.filter(p => isMemberSubject(p.subject));
   const counts = new Map<string, number>();
-  for (const p of form.parties) counts.set(p.subject, (counts.get(p.subject) ?? 0) + 1);
+  for (const p of shown) counts.set(p.subject, (counts.get(p.subject) ?? 0) + 1);
 
   async function send() {
     setProblem(null);
-    if (!form.validateEverything()) {
+    const found = validateAll(membershipType, shown);
+    form.setErrors(found);
+    if (Object.keys(found).length > 0) {
       setProblem('Some details need attention. Check the fields marked in red.');
       return;
     }

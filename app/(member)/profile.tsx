@@ -3,7 +3,7 @@ import React from 'react';
 import { RefreshControl, ScrollView, StyleSheet } from 'react-native';
 import { ApiError, type FieldSubject } from '@/api';
 import { useAuth } from '@/auth/AuthContext';
-import { partyTitle, visibleFields } from '@/forms/validate';
+import { isMemberSubject, partyTitle, visibleFields } from '@/forms/validate';
 import { useMe, useReference } from '@/hooks/queries';
 import { confirmDialog } from '@/lib/dialog';
 import { forDisplay } from '@/lib/phone';
@@ -41,13 +41,14 @@ export default function Profile() {
     );
   }
 
+  const parties = profile.parties.filter(p => isMemberSubject(p.subject));
   const counts = new Map<FieldSubject, number>();
-  for (const p of profile.parties) counts.set(p.subject, (counts.get(p.subject) ?? 0) + 1);
+  for (const p of parties) counts.set(p.subject, (counts.get(p.subject) ?? 0) + 1);
 
   // Fields on the membership type with nothing on record — what the member
   // can complete themselves.
   const incomplete = membershipType
-    ? profile.parties.flatMap(p =>
+    ? parties.flatMap(p =>
         visibleFields(membershipType, p.subject).filter(f => f.isMandatory && !(p.values[f.fieldKey] ?? '').trim())
       ).length
     : 0;
@@ -86,7 +87,7 @@ export default function Profile() {
       />
       {!membershipType ? <Body muted>Details cannot be edited: the membership type is not available.</Body> : null}
 
-      {profile.parties.map(party => {
+      {parties.map(party => {
         const fields = membershipType ? visibleFields(membershipType, party.subject) : [];
         if (fields.length === 0 && Object.keys(party.values).length === 0) return null;
         return (
