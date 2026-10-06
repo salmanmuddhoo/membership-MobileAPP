@@ -10,7 +10,7 @@ import { useAuth } from '@/auth/AuthContext';
 import { useAccounts, useApplications, useDependents, useMe, usePromotions } from '@/hooks/queries';
 import { formatDate, statusLabel } from '@/lib/format';
 import { sumMoney } from '@/lib/money';
-import { Badge, Banner, Body, Button, Card, Spacer } from '@/ui';
+import { Banner, Body, Button, Card, Spacer } from '@/ui';
 import { Balance, BalanceToggle } from '@/ui/Balance';
 import { PromotionCarousel, showablePromotions } from '@/ui/Carousel';
 import { colors, radius, spacing, type } from '@/ui/theme';
@@ -63,7 +63,6 @@ export default function Home() {
         <View style={styles.memberNo}>
           <Text style={styles.memberNoLabel}>Member No.</Text>
           <Text style={styles.memberNoValue}>{profile.memberNo}</Text>
-          <Badge tone={profile.status === 'active' ? 'success' : 'warning'}>{statusLabel(profile.status)}</Badge>
         </View>
       ) : (
         <Spacer />

@@ -1,9 +1,9 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { Redirect, Tabs } from 'expo-router';
 import React from 'react';
 import { useAuth } from '@/auth/AuthContext';
 import { useMe } from '@/hooks/queries';
 import { Loading } from '@/ui';
+import { TabIcon } from '@/ui/TabIcon';
 import { colors } from '@/ui/theme';
 
 export default function MemberLayout() {
@@ -16,7 +16,7 @@ export default function MemberLayout() {
   // holds an account (a member, or a non-member account holder); the card
   // is a member's; Applications is for whoever is not yet a member. Each
   // appears once the profile says so, rather than flashing at the wrong
-  // person while it loads.
+  // person while it loads. Transact sits in the middle of the bar.
   const kind = me.data?.kind;
   const hasAccounts = kind === 'member' || kind === 'customer';
   const isMember = kind === 'member';
@@ -31,55 +31,30 @@ export default function MemberLayout() {
         headerTitleStyle: { fontWeight: '600' },
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.muted,
+        tabBarStyle: { height: 64, paddingTop: 6 },
+        tabBarLabelStyle: { paddingBottom: 6 },
         sceneStyle: { backgroundColor: colors.bg },
       }}
     >
-      <Tabs.Screen
-        name="home"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color, size }) => <Ionicons name="home-outline" color={color} size={size} />,
-        }}
-      />
+      <Tabs.Screen name="home" options={{ title: 'Home', tabBarIcon: props => <TabIcon name="home-outline" {...props} /> }} />
       <Tabs.Screen
         name="accounts"
-        options={{
-          title: 'Accounts',
-          href: tab(hasAccounts),
-          tabBarIcon: ({ color, size }) => <Ionicons name="wallet-outline" color={color} size={size} />,
-        }}
-      />
-      <Tabs.Screen
-        name="card"
-        options={{
-          title: 'Cards',
-          href: tab(isMember),
-          tabBarIcon: ({ color, size }) => <Ionicons name="card-outline" color={color} size={size} />,
-        }}
+        options={{ title: 'Accounts', href: tab(hasAccounts), tabBarIcon: props => <TabIcon name="wallet-outline" {...props} /> }}
       />
       <Tabs.Screen
         name="transact"
-        options={{
-          title: 'Transact',
-          href: tab(hasAccounts),
-          tabBarIcon: ({ color, size }) => <Ionicons name="swap-horizontal-outline" color={color} size={size} />,
-        }}
+        options={{ title: 'Transact', href: tab(hasAccounts), tabBarIcon: props => <TabIcon name="swap-horizontal-outline" {...props} /> }}
       />
+      <Tabs.Screen name="card" options={{ title: 'Cards', href: tab(isMember), tabBarIcon: props => <TabIcon name="card-outline" {...props} /> }} />
       <Tabs.Screen
         name="applications"
         options={{
           title: 'Applications',
           href: tab(showApplications),
-          tabBarIcon: ({ color, size }) => <Ionicons name="document-text-outline" color={color} size={size} />,
+          tabBarIcon: props => <TabIcon name="document-text-outline" {...props} />,
         }}
       />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: 'My details',
-          tabBarIcon: ({ color, size }) => <Ionicons name="person-circle-outline" color={color} size={size} />,
-        }}
-      />
+      <Tabs.Screen name="profile" options={{ title: 'My details', tabBarIcon: props => <TabIcon name="person-circle-outline" {...props} /> }} />
     </Tabs>
   );
 }

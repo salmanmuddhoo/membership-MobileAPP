@@ -2,8 +2,8 @@
 // card is its picture — the title and text written on the web application
 // are for the administrator's list and for a screen reader, not the phone's
 // screen (officer direction). A card with no picture has nothing to show
-// here and is left out. One card a page, a dot per card, and a slow
-// auto-advance that stops the moment the person touches it.
+// here and is left out. One card a page, a dot per card, and an
+// auto-advance every three seconds that a swipe only restarts.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   FlatList,
@@ -19,7 +19,7 @@ import {
 import type { Promotion } from '../api';
 import { colors, radius, spacing } from './theme';
 
-const ADVANCE_EVERY_MS = 6_000;
+const ADVANCE_EVERY_MS = 3_000;
 // Landscape, as a banner is.
 const ASPECT = 16 / 9;
 
@@ -33,19 +33,21 @@ export function PromotionCarousel({ items }: { items: Promotion[] }) {
   const stride = pageWidth + spacing.md;
   const list = useRef<FlatList<Promotion>>(null);
   const [page, setPage] = useState(0);
-  const [touched, setTouched] = useState(false);
+  // Bumped by a swipe so the clock starts again from that card.
+  const [epoch, setEpoch] = useState(0);
 
   // Keep the dots honest when the person swipes.
   const onScrollEnd = useCallback(
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
       const next = Math.round(e.nativeEvent.contentOffset.x / stride);
       setPage(Math.max(0, Math.min(items.length - 1, next)));
+      setEpoch(n => n + 1);
     },
     [items.length, stride]
   );
 
   useEffect(() => {
-    if (touched || items.length < 2) return;
+    if (items.length < 2) return;
     const t = setInterval(() => {
       setPage(current => {
         const next = (current + 1) % items.length;
@@ -54,7 +56,7 @@ export function PromotionCarousel({ items }: { items: Promotion[] }) {
       });
     }, ADVANCE_EVERY_MS);
     return () => clearInterval(t);
-  }, [items.length, touched]);
+  }, [items.length, epoch]);
 
   if (items.length === 0) return null;
 
@@ -70,7 +72,6 @@ export function PromotionCarousel({ items }: { items: Promotion[] }) {
         snapToAlignment="start"
         decelerationRate="fast"
         contentContainerStyle={{ gap: spacing.md }}
-        onScrollBeginDrag={() => setTouched(true)}
         onMomentumScrollEnd={onScrollEnd}
         getItemLayout={(_, index) => ({ length: stride, offset: stride * index, index })}
         renderItem={({ item }) => <PromotionCard item={item} width={pageWidth} />}
