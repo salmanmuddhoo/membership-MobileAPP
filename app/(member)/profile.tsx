@@ -80,13 +80,6 @@ export default function Profile() {
         <Row label="Member since" value={formatDate(profile.joinedAt)} last />
       </Card>
 
-      <Button
-        title={incomplete > 0 ? 'Complete my details' : 'Update my details'}
-        onPress={() => router.push('/details-edit')}
-        disabled={!membershipType || !!profile.pendingUpdate}
-      />
-      {!membershipType ? <Body muted>Details cannot be edited: the membership type is not available.</Body> : null}
-
       {parties.map(party => {
         const fields = membershipType ? visibleFields(membershipType, party.subject) : [];
         if (fields.length === 0 && Object.keys(party.values).length === 0) return null;
@@ -107,6 +100,13 @@ export default function Profile() {
         );
       })}
 
+      <Spacer />
+      <Button
+        title={incomplete > 0 ? 'Complete my details' : 'Update my details'}
+        onPress={() => router.push('/details-edit')}
+        disabled={!membershipType || !!profile.pendingUpdate}
+      />
+      {!membershipType ? <Body muted>Details cannot be edited: the membership type is not available.</Body> : null}
       <Spacer size="xl" />
       <Body muted>Signed in as {session ? forDisplay(session.identity.mobile) : ''}</Body>
       <Spacer size="sm" />

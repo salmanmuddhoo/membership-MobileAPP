@@ -4,13 +4,15 @@
 export function sumMoney(amounts: readonly (string | null)[]): string | null {
   let cents = 0;
   for (const amount of amounts) {
-    // One balance the ledger cannot state makes the total unstatable too;
-    // a wrong total is worse than none.
-    if (amount === null) return null;
-    const match = /^(-?)(\d+)(?:\.(\d{1,2}))?$/.exec(amount.trim());
+    // The server sends null for an account with no ledger balance yet,
+    // which it defines as the same as zero (member/profile.ts).
+    if (amount === null) continue;
+    const match = /^(-?)(\d+)(?:\.(\d*))?$/.exec(amount.trim().replace(/,/g, ''));
+    // A string that is not a decimal cannot be added; better no total
+    // than a wrong one.
     if (!match) return null;
     const [, sign, whole, fraction = ''] = match;
-    const value = Number(whole) * 100 + Number(fraction.padEnd(2, '0'));
+    const value = Number(whole) * 100 + Number(fraction.padEnd(2, '0').slice(0, 2));
     cents += sign === '-' ? -value : value;
   }
   const sign = cents < 0 ? '-' : '';
