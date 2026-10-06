@@ -13,6 +13,7 @@ export const keys = {
   dependentTransactions: (dependentId: string, accountId: string) =>
     ['dependents', dependentId, 'accounts', accountId, 'transactions'] as const,
   promotions: ['promotions'] as const,
+  outlets: ['outlets'] as const,
   applications: ['applications'] as const,
   application: (id: string) => ['applications', id] as const,
 };
@@ -63,6 +64,17 @@ export function useDependentTransactions(dependentId: string, accountId: string)
     queryKey: keys.dependentTransactions(dependentId, accountId),
     queryFn: () => withToken(t => api.dependentTransactions(t, dependentId, accountId)),
     enabled: !!session && !!dependentId && !!accountId,
+  });
+}
+
+// Where the membership card earns a discount: the list on the Cards screen.
+export function useOutlets() {
+  const { withToken, session } = useAuth();
+  return useQuery({
+    queryKey: keys.outlets,
+    queryFn: () => withToken(t => api.outlets(t)),
+    enabled: !!session,
+    staleTime: 5 * 60_000,
   });
 }
 

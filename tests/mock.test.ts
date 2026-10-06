@@ -265,3 +265,16 @@ test('the home screen cards: what is being promoted, to anyone signed in', async
   const applicant = await signUp(api, '5999 1111');
   assert.deepEqual(await api.promotions(applicant.accessToken), cards);
 });
+
+test('where the card earns a discount: every outlet has a logo, a category and a percentage', async () => {
+  const api = memberApi(createMockTransport());
+  await assert.rejects(api.outlets('not-a-token'), (e: unknown) => e instanceof ApiError && e.code === 'unauthenticated');
+  const member = await linkMember(api);
+  const outlets = await api.outlets(member.accessToken);
+  assert.ok(outlets.length >= 1);
+  for (const o of outlets) {
+    assert.match(o.logoUrl, /^https:\/\//);
+    assert.equal(o.category, o.category.toLowerCase());
+    assert.match(o.discountPercent, /^\d+(\.\d+)?$/);
+  }
+});

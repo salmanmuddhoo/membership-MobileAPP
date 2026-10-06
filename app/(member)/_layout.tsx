@@ -1,5 +1,6 @@
 import { Redirect, Tabs } from 'expo-router';
 import React from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/auth/AuthContext';
 import { useMe } from '@/hooks/queries';
 import { Loading } from '@/ui';
@@ -9,6 +10,9 @@ import { colors } from '@/ui/theme';
 export default function MemberLayout() {
   const { ready, session } = useAuth();
   const me = useMe();
+  // The phone's own navigation bar (gesture strip or three buttons) sits
+  // over the bottom of the screen; the tab bar makes room for it.
+  const insets = useSafeAreaInsets();
   if (!ready) return <Loading />;
   if (!session) return <Redirect href="/(auth)/welcome" />;
 
@@ -31,8 +35,7 @@ export default function MemberLayout() {
         headerTitleStyle: { fontWeight: '600' },
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.muted,
-        tabBarStyle: { height: 64, paddingTop: 6 },
-        tabBarLabelStyle: { paddingBottom: 6 },
+        tabBarStyle: { height: 58 + insets.bottom, paddingTop: 6, paddingBottom: insets.bottom + 4 },
         sceneStyle: { backgroundColor: colors.bg },
       }}
     >
