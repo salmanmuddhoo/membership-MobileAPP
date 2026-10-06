@@ -36,25 +36,25 @@ export default function MemberLayout() {
         sceneStyle: { backgroundColor: colors.bg },
       }}
     >
-      <Tabs.Screen name="home" options={{ title: 'Home', tabBarIcon: props => <TabIcon name=\"home-outline\" {...props} /> }} />
+      <Tabs.Screen name="home" options={{ title: 'Home', tabBarIcon: props => <TabIcon name="home-outline" {...props} /> }} />
       <Tabs.Screen
         name="accounts"
-        options={{ title: 'Accounts', href: tab(hasAccounts), tabBarIcon: props => <TabIcon name=\"wallet-outline\" {...props} /> }}
+        options={{ title: 'Accounts', href: tab(hasAccounts), tabBarIcon: props => <TabIcon name="wallet-outline" {...props} /> }}
       />
       <Tabs.Screen
         name="transact"
-        options={{ title: 'Transact', href: tab(hasAccounts), tabBarIcon: props => <TabIcon name=\"swap-horizontal-outline\" {...props} /> }}
+        options={{ title: 'Transact', href: tab(hasAccounts), tabBarIcon: props => <TabIcon name="swap-horizontal-outline" {...props} /> }}
       />
-      <Tabs.Screen name="card" options={{ title: 'Cards', href: tab(isMember), tabBarIcon: props => <TabIcon name=\"card-outline\" {...props} /> }} />
+      <Tabs.Screen name="card" options={{ title: 'Cards', href: tab(isMember), tabBarIcon: props => <TabIcon name="card-outline" {...props} /> }} />
       <Tabs.Screen
         name="applications"
         options={{
           title: 'Applications',
           href: tab(showApplications),
-          tabBarIcon: props => <TabIcon name=\"document-text-outline\" {...props} />,
+          tabBarIcon: props => <TabIcon name="document-text-outline" {...props} />,
         }}
       />
-      <Tabs.Screen name="profile" options={{ title: 'My details', tabBarIcon: props => <TabIcon name=\"person-circle-outline\" {...props} /> }} />
+      <Tabs.Screen name="profile" options={{ title: 'My details', tabBarIcon: props => <TabIcon name="person-circle-outline" {...props} /> }} />
     </Tabs>
   );
 }
