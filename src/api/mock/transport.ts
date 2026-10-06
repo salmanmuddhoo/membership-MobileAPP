@@ -24,6 +24,7 @@ import type {
   FiledDocument,
   MemberProfile,
   MembershipType,
+  Outlet,
   PartyValues,
   Promotion,
   Session,
@@ -251,6 +252,50 @@ const PROMOTIONS: Promotion[] = [
     linkUrl: null,
     linkLabel: null,
     accent: '#5C3D1E',
+  },
+];
+
+// Where the card earns a discount in the demo.
+const OUTLETS: Outlet[] = [
+  {
+    id: 'outlet-1',
+    name: 'Winners Supermarket',
+    logoUrl: 'https://albarakah.mu/images/outlets/winners.png',
+    category: 'groceries',
+    discountPercent: '5',
+    description: 'On all groceries, every day.',
+    address: 'Royal Road, Rose Hill',
+    linkUrl: null,
+  },
+  {
+    id: 'outlet-2',
+    name: 'Bright Minds Tuition',
+    logoUrl: 'https://albarakah.mu/images/outlets/brightminds.png',
+    category: 'education',
+    discountPercent: '15',
+    description: 'Primary and secondary tuition, all subjects.',
+    address: 'Quatre Bornes',
+    linkUrl: 'https://example.com/brightminds',
+  },
+  {
+    id: 'outlet-3',
+    name: 'Al Noor Restaurant',
+    logoUrl: 'https://albarakah.mu/images/outlets/alnoor.png',
+    category: 'food',
+    discountPercent: '10',
+    description: 'Dine-in only, excluding set menus.',
+    address: 'Port Louis',
+    linkUrl: null,
+  },
+  {
+    id: 'outlet-4',
+    name: 'City Pharmacy',
+    logoUrl: 'https://albarakah.mu/images/outlets/citypharmacy.png',
+    category: 'health',
+    discountPercent: '7.5',
+    description: 'Over-the-counter products.',
+    address: 'Curepipe',
+    linkUrl: null,
   },
 ];
 
@@ -662,6 +707,14 @@ export function createMockTransport(): Transport {
       handle: (_, __, options) => {
         requireSession(options);
         return PROMOTIONS;
+      },
+    },
+    {
+      method: 'GET',
+      pattern: /^\/api\/v1\/member\/outlets$/,
+      handle: (_, __, options) => {
+        requireSession(options);
+        return OUTLETS;
       },
     },
     {

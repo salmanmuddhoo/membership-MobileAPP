@@ -76,6 +76,24 @@ export interface Reference {
   membershipTypes: MembershipType[];
 }
 
+// A partner outlet where the membership card earns a discount. Written by
+// an administrator on the web application's Member app page; the Cards
+// screen lists them by category.
+export interface Outlet {
+  id: string;
+  name: string;
+  // The outlet's logo (https), shown on a white tile.
+  logoUrl: string;
+  // A tag such as "education", "groceries" or "food": whatever the
+  // administrator typed, lower-case; the app groups and labels it.
+  category: string;
+  // Decimal string, e.g. "10" or "12.5".
+  discountPercent: string;
+  description: string;
+  address: string | null;
+  linkUrl: string | null;
+}
+
 // A card on the home screen: something the Society is promoting. Written
 // by an administrator on the web application's Member app page; the app
 // shows whatever is live, in order, and nothing when there is nothing.

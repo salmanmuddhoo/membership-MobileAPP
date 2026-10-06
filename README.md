@@ -162,7 +162,7 @@ Welcome → Link my membership (NIC + AB Number) → Code → Choose a PIN →
 **Home** (total balance, the Society's promotion cards, shortcuts) ·
 **Accounts** (a balance per account, own and minors' apart, hide / show) →
 account → transactions · **Cards** (the membership card: name, Member No.,
-barcode) · **Transact** (deposit, withdrawal, transfer — coming) · **My
+barcode; the partner outlets where it earns a discount, by category) · **Transact** (deposit, withdrawal, transfer — coming) · **My
 details** (the applicant's and guardian's details; employment and nominees
 stay a branch matter) → Complete / update my details → sent for
 verification. Opening the app again asks for the PIN, never the code; five

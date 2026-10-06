@@ -11,6 +11,7 @@ import type {
   LinkMemberRequest,
   MemberProfile,
   OtpChallenge,
+  Outlet,
   PartyValues,
   Promotion,
   Reference,
@@ -86,6 +87,9 @@ export function memberApi(transport: Transport) {
 
     // What is being promoted right now, in the order to show it.
     promotions: (token: string) => call<Promotion[]>('/promotions', { token }),
+
+    // Where the membership card earns a discount, in the order to show it.
+    outlets: (token: string) => call<Outlet[]>('/outlets', { token }),
 
     // --- applications ----------------------------------------------------
     applications: (token: string) => call<Application[]>('/applications', { token }),
