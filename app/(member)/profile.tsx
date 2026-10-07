@@ -3,12 +3,12 @@ import React from 'react';
 import { RefreshControl, ScrollView, StyleSheet } from 'react-native';
 import { ApiError, type FieldSubject } from '@/api';
 import { useAuth } from '@/auth/AuthContext';
-import { isMemberSubject, partyTitle, visibleFields } from '@/forms/validate';
+import { isMemberSubject, missingKeys, partyTitle, visibleFields } from '@/forms/validate';
 import { useMe, useReference } from '@/hooks/queries';
 import { confirmDialog } from '@/lib/dialog';
 import { forDisplay } from '@/lib/phone';
-import { formatDate, statusLabel } from '@/lib/format';
-import { Badge, Banner, Body, Button, Card, Empty, Heading, Loading, Row, Spacer } from '@/ui';
+import { formatDate } from '@/lib/format';
+import { Banner, Body, Button, Card, Empty, Heading, Loading, Row, Spacer } from '@/ui';
 import { colors, spacing } from '@/ui/theme';
 
 export default function Profile() {
@@ -45,13 +45,10 @@ export default function Profile() {
   const counts = new Map<FieldSubject, number>();
   for (const p of parties) counts.set(p.subject, (counts.get(p.subject) ?? 0) + 1);
 
-  // Fields on the membership type with nothing on record — what the member
-  // can complete themselves.
-  const incomplete = membershipType
-    ? parties.flatMap(p =>
-        visibleFields(membershipType, p.subject).filter(f => f.isMandatory && !(p.values[f.fieldKey] ?? '').trim())
-      ).length
-    : 0;
+  // Fields on the membership type with nothing on record — the only ones
+  // the member may fill in themselves (officer direction): what is on
+  // record changes at a branch.
+  const incomplete = membershipType ? parties.reduce((n, p) => n + missingKeys(membershipType, p).length, 0) : 0;
 
   return (
     <ScrollView
@@ -75,17 +72,18 @@ export default function Profile() {
 
       <Card>
         <Row label="Member No." value={profile.memberNo ?? '—'} />
-        <Row label="Membership" value={profile.membershipType?.name ?? '—'} />
-        <Row label="Status" value={<Badge tone={profile.status === 'active' ? 'success' : 'warning'}>{statusLabel(profile.status)}</Badge>} />
         <Row label="Member since" value={formatDate(profile.joinedAt)} last />
       </Card>
 
       {parties.map(party => {
         const fields = membershipType ? visibleFields(membershipType, party.subject) : [];
         if (fields.length === 0 && Object.keys(party.values).length === 0) return null;
+        // The member's own details are the page; only another party (a
+        // minor's guardian) gets a heading of its own.
+        const heading = party.subject === 'applicant' ? null : partyTitle(party.subject, party.ordinal, counts.get(party.subject) ?? 1);
         return (
           <React.Fragment key={`${party.subject}-${party.ordinal}`}>
-            <Heading>{partyTitle(party.subject, party.ordinal, counts.get(party.subject) ?? 1)}</Heading>
+            {heading ? <Heading>{heading}</Heading> : <Spacer />}
             <Card>
               {(fields.length > 0
                 ? fields.map(f => ({ key: f.fieldKey, label: f.label, type: f.dataType }))
@@ -101,12 +99,15 @@ export default function Profile() {
       })}
 
       <Spacer />
-      <Button
-        title={incomplete > 0 ? 'Complete my details' : 'Update my details'}
-        onPress={() => router.push('/details-edit')}
-        disabled={!membershipType || !!profile.pendingUpdate}
-      />
-      {!membershipType ? <Body muted>Details cannot be edited: the membership type is not available.</Body> : null}
+      {incomplete > 0 ? (
+        <Button
+          title="Complete my details"
+          onPress={() => router.push('/details-edit')}
+          disabled={!!profile.pendingUpdate}
+        />
+      ) : (
+        <Body muted>All your details are on record. To change any of them, visit a branch with your ID.</Body>
+      )}
       <Spacer size="xl" />
       <Body muted>Signed in as {session ? forDisplay(session.identity.mobile) : ''}</Body>
       <Spacer size="sm" />

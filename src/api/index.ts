@@ -14,6 +14,17 @@ const mode = process.env.EXPO_PUBLIC_API_MODE ?? (url ? 'live' : 'mock');
 
 export const API_MODE: 'live' | 'mock' = mode === 'live' && url ? 'live' : 'mock';
 
+// A session token must never travel in clear. A live build pointed at a
+// plain-http origin is a misconfiguration, and it fails here, at start,
+// rather than quietly on a phone. A developer's own machine is the one
+// exception, and only in a development build.
+if (API_MODE === 'live' && !/^https:\/\//i.test(url)) {
+  const local = /^http:\/\/(localhost|127\.0\.0\.1|10\.0\.2\.2)(:\d+)?(\/|$)/i.test(url);
+  if (!(__DEV__ && local)) {
+    throw new Error(`EXPO_PUBLIC_API_URL must be an https:// origin, not "${url}".`);
+  }
+}
+
 const transport: Transport =
   API_MODE === 'live' ? createHttpTransport(url) : createMockTransport();
 

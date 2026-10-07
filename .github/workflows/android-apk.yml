@@ -40,6 +40,9 @@ jobs:
       # Shown on the app's first screen, so a person holding the phone can
       # tell which build they are actually running.
       EXPO_PUBLIC_BUILD: ${{ github.sha }}
+      # Google Play needs every upload to carry a higher versionCode than
+      # the last (app.config.js); the run number only ever goes up.
+      ANDROID_VERSION_CODE: ${{ github.run_number }}
     steps:
       - uses: actions/checkout@v4
 
@@ -64,14 +67,11 @@ jobs:
       # the same key, so a newer APK installs over an older one as an update.
       # Without them a throwaway key is generated for this run: the APK still
       # installs, but the next build will not update it in place — uninstall
-      # first.
-      # A release APK must be signed. With ANDROID_KEYSTORE_BASE64 (and the
-      # three passwords) set as repository secrets, every build is signed with
-      # the same key, so a newer APK installs over an older one as an update.
-      # Without them a throwaway key is generated for this run: the APK still
-      # installs, but the next build will not update it in place — uninstall
       # first. The work is in scripts/android-signing.sh so it can be run and
       # read on its own.
+      - name: Note whether the repository's key is set
+        run: echo "HAS_KEYSTORE=${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}" >> "$GITHUB_ENV"
+
       - name: Prepare the signing key
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -84,11 +84,24 @@ jobs:
         working-directory: android
         run: ./gradlew assembleRelease --no-daemon
 
-      - name: Name the APK
+      # Google Play takes an App Bundle, not an APK, and only one signed with
+      # the key registered on the Play Console — so the bundle is built only
+      # when the repository's key is set. A throwaway-signed bundle could
+      # never be uploaded.
+      - name: Build the release App Bundle for Google Play
+        if: env.HAS_KEYSTORE == 'true'
+        working-directory: android
+        run: ./gradlew bundleRelease --no-daemon
+
+      - name: Name the APK (and the bundle)
         run: |
           mkdir -p out
           cp android/app/build/outputs/apk/release/app-release.apk \
             "out/albarakah-member-${EXPO_PUBLIC_API_MODE}-${GITHUB_SHA::7}.apk"
+          if [ -f android/app/build/outputs/bundle/release/app-release.aab ]; then
+            cp android/app/build/outputs/bundle/release/app-release.aab \
+              "out/albarakah-member-${EXPO_PUBLIC_API_MODE}-${GITHUB_SHA::7}.aab"
+          fi
           ls -la out
 
       # On the run's own page, not buried in the log. Whether this APK can
@@ -106,6 +119,8 @@ jobs:
             echo
             if [ -n "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" ]; then
               echo "Signed with the repository's key: **installs over the previous build as an update.**"
+              echo
+              echo "The \`.aab\` beside it (versionCode ${ANDROID_VERSION_CODE}) is what to upload to Google Play."
             else
               echo "> [!IMPORTANT]"
               echo "> Signed with a **throwaway key**, generated for this run alone."
@@ -125,11 +140,15 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: albarakah-member-apk
-          path: out/*.apk
+          path: |
+            out/*.apk
+            out/*.aab
           retention-days: 30
 
       - name: Attach to the release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: out/*.apk
+          files: |
+            out/*.apk
+            out/*.aab

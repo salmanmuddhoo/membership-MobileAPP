@@ -1,21 +1,20 @@
-// The landing page: what the Society is promoting, the member's money in
-// one figure, and a way to every part of the app (officer direction — a
-// promotional page with shortcuts, not a second accounts screen).
-import Ionicons from '@expo/vector-icons/Ionicons';
-import { useRouter, type Href } from 'expo-router';
+// The landing page: the member's money in one figure, what the Society is
+// promoting, and its partners — the outlets that pay the premium fee
+// (officer direction — a promotional page, not a second menu).
+import { useRouter } from 'expo-router';
 import React from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { ApiError } from '@/api';
+import { Image, Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ApiError, type Outlet } from '@/api';
 import { useAuth } from '@/auth/AuthContext';
-import { useAccounts, useApplications, useDependents, useMe, usePromotions } from '@/hooks/queries';
+import { useAccounts, useApplications, useMe, useOutlets, usePromotions } from '@/hooks/queries';
+import { useRootedDevice } from '@/lib/device';
 import { formatDate, statusLabel } from '@/lib/format';
 import { sumMoney } from '@/lib/money';
-import { Banner, Body, Button, Card, Spacer } from '@/ui';
+import { discountLabel } from '@/lib/outlets';
+import { Banner, Body, Button, Card, Heading, Spacer } from '@/ui';
 import { Balance, BalanceToggle } from '@/ui/Balance';
 import { PromotionCarousel, showablePromotions } from '@/ui/Carousel';
 import { colors, radius, spacing, type } from '@/ui/theme';
-
-type Shortcut = { title: string; icon: React.ComponentProps<typeof Ionicons>['name']; href: Href };
 
 export default function Home() {
   const router = useRouter();
@@ -23,8 +22,9 @@ export default function Home() {
   const me = useMe();
   const accounts = useAccounts();
   const applications = useApplications();
-  const dependents = useDependents();
   const promotions = usePromotions();
+  const outlets = useOutlets();
+  const rooted = useRootedDevice();
 
   const refreshing = me.isRefetching || accounts.isRefetching;
   const refresh = () => {
@@ -32,6 +32,7 @@ export default function Home() {
     accounts.refetch();
     applications.refetch();
     promotions.refetch();
+    outlets.refetch();
   };
 
   const profile = me.data;
@@ -42,15 +43,7 @@ export default function Home() {
   const total = accounts.data ? sumMoney(accounts.data.map(a => a.balance)) : null;
   const cards = promotions.data ? showablePromotions(promotions.data) : [];
 
-  const shortcuts: Shortcut[] = [];
-  if (hasAccounts) shortcuts.push({ title: 'Accounts', icon: 'wallet-outline', href: '/(member)/accounts' });
-  if (isMember) shortcuts.push({ title: 'My card', icon: 'card-outline', href: '/(member)/card' });
-  if (hasAccounts) shortcuts.push({ title: 'Transact', icon: 'swap-horizontal-outline', href: '/(member)/transact' });
-  if (dependents.data && dependents.data.length > 0) {
-    shortcuts.push({ title: 'Minors', icon: 'people-outline', href: '/(member)/accounts' });
-  }
-  if (profile && !isMember) shortcuts.push({ title: 'Applications', icon: 'document-text-outline', href: '/(member)/applications' });
-  shortcuts.push({ title: 'My details', icon: 'person-circle-outline', href: '/(member)/profile' });
+  const partners = (outlets.data ?? []).filter(o => o.isPartner);
 
   return (
     <ScrollView
@@ -68,6 +61,11 @@ export default function Home() {
         <Spacer />
       )}
       {problem ? <Banner tone="danger">{problem}</Banner> : null}
+      {rooted ? (
+        <Banner tone="warning" title="This phone appears to be rooted">
+          A rooted phone can expose what the app keeps on it. Use the app on a phone you trust.
+        </Banner>
+      ) : null}
 
       {hasAccounts ? (
         <Pressable
@@ -121,22 +119,45 @@ export default function Home() {
         </Card>
       ) : null}
 
-      <View style={styles.grid}>
-        {shortcuts.map(s => (
-          <Pressable
-            key={s.title}
-            onPress={() => router.push(s.href)}
-            accessibilityRole="button"
-            style={({ pressed }) => [styles.shortcut, pressed && styles.shortcutPressed]}
-          >
-            <View style={styles.shortcutIcon}>
-              <Ionicons name={s.icon} size={24} color={colors.primary} />
-            </View>
-            <Text style={styles.shortcutText}>{s.title}</Text>
-          </Pressable>
-        ))}
-      </View>
+      {partners.length > 0 ? (
+        <>
+          <Heading>Our partners</Heading>
+          <Body muted>Show your membership card at these outlets for the discount.</Body>
+          <Spacer size="sm" />
+          <View style={styles.partners}>
+            {partners.map(o => (
+              <PartnerTile key={o.id} outlet={o} onPress={() => openPartner(o, () => router.push('/(member)/card'))} />
+            ))}
+          </View>
+        </>
+      ) : null}
     </ScrollView>
+  );
+}
+
+// A partner's link if it has one; otherwise the Cards screen, where the
+// outlet is listed with its address and terms.
+function openPartner(outlet: Outlet, fallback: () => void) {
+  if (outlet.linkUrl) Linking.openURL(outlet.linkUrl).catch(fallback);
+  else fallback();
+}
+
+function PartnerTile({ outlet, onPress }: { outlet: Outlet; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${outlet.name}, ${discountLabel(outlet.discountPercent)}`}
+      style={({ pressed }) => [styles.partner, pressed && styles.partnerPressed]}
+    >
+      <View style={styles.partnerLogo}>
+        <Image source={{ uri: outlet.logoUrl }} style={styles.partnerImage} resizeMode="contain" />
+      </View>
+      <Text style={styles.partnerName} numberOfLines={1}>
+        {outlet.name}
+      </Text>
+      <Text style={styles.partnerDiscount}>{discountLabel(outlet.discountPercent)}</Text>
+    </Pressable>
   );
 }
 
@@ -161,8 +182,8 @@ const styles = StyleSheet.create({
   totalLabel: { color: 'rgba(255,255,255,0.85)', fontSize: 14, fontWeight: '600' },
   totalValue: { color: '#fff', fontSize: 32, fontWeight: '700', marginTop: spacing.xs },
   totalHint: { color: 'rgba(255,255,255,0.75)', fontSize: 13, marginTop: spacing.xs },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginTop: spacing.sm },
-  shortcut: {
+  partners: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
+  partner: {
     width: '30%',
     flexGrow: 1,
     backgroundColor: colors.surface,
@@ -171,16 +192,19 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     padding: spacing.md,
     alignItems: 'center',
-    gap: spacing.sm,
+    gap: spacing.xs,
   },
-  shortcutPressed: { backgroundColor: colors.primarySoft },
-  shortcutIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.primarySoft,
+  partnerPressed: { backgroundColor: colors.primarySoft },
+  partnerLogo: {
+    width: 56,
+    height: 56,
+    borderRadius: radius.md,
+    backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
-  shortcutText: { ...type.label, textAlign: 'center' },
+  partnerImage: { width: 48, height: 48 },
+  partnerName: { ...type.label, textAlign: 'center' },
+  partnerDiscount: { fontSize: 12, fontWeight: '700', color: colors.primary },
 });

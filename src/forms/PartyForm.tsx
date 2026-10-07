@@ -40,6 +40,7 @@ export function PartyForm({
   errors,
   onChange,
   readOnlyKeys = [],
+  onlyKeys,
 }: {
   type: MembershipType;
   party: PartyValues;
@@ -47,10 +48,14 @@ export function PartyForm({
   onChange: (fieldKey: string, value: string) => void;
   // Fields shown but not editable — the mobile the person signed in with.
   readOnlyKeys?: string[];
+  // When given, only these fields are shown at all.
+  onlyKeys?: string[];
 }) {
   return (
     <>
-      {visibleFields(type, party.subject).map(field => {
+      {visibleFields(type, party.subject)
+        .filter(field => !onlyKeys || onlyKeys.includes(field.fieldKey))
+        .map(field => {
         const path = fieldPath(party.subject, party.ordinal, field.fieldKey);
         const value = party.values[field.fieldKey] ?? '';
         const error = errors[path] ?? null;

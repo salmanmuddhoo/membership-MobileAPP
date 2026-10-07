@@ -128,6 +128,7 @@ function seedMember(): Person {
         status: 'active',
         openedAt: daysAgo(400),
         balance: '500.00',
+        transactionCount: 2,
       },
       {
         id: 'acc-msa',
@@ -138,6 +139,7 @@ function seedMember(): Person {
         status: 'active',
         openedAt: daysAgo(400),
         balance: '5000.00',
+        transactionCount: 1,
       },
     ],
     transactions: {
@@ -191,6 +193,7 @@ function seedMember(): Person {
             status: 'active',
             openedAt: daysAgo(120),
             balance: '750.00',
+            transactionCount: 1,
           },
         ],
       },
@@ -266,6 +269,7 @@ const OUTLETS: Outlet[] = [
     description: 'On all groceries, every day.',
     address: 'Royal Road, Rose Hill',
     linkUrl: null,
+    isPartner: true,
   },
   {
     id: 'outlet-2',
@@ -276,6 +280,7 @@ const OUTLETS: Outlet[] = [
     description: 'Primary and secondary tuition, all subjects.',
     address: 'Quatre Bornes',
     linkUrl: 'https://example.com/brightminds',
+    isPartner: true,
   },
   {
     id: 'outlet-3',
@@ -286,6 +291,7 @@ const OUTLETS: Outlet[] = [
     description: 'Dine-in only, excluding set menus.',
     address: 'Port Louis',
     linkUrl: null,
+    isPartner: false,
   },
   {
     id: 'outlet-4',
@@ -296,6 +302,7 @@ const OUTLETS: Outlet[] = [
     description: 'Over-the-counter products.',
     address: 'Curepipe',
     linkUrl: null,
+    isPartner: false,
   },
 ];
 
@@ -506,10 +513,15 @@ export function createMockTransport(): Transport {
         const person = [...people.values()].find(
           p => p.profile.kind === 'member' && p.profile.status === 'active' && p.nic === nic && p.profile.memberNo === abNumber
         );
-        // The same answer whether the pair named someone or not: a miss
-        // gets a challenge nothing can verify against, and no code. That is
-        // what keeps the response from saying whether a NIC + AB Number
-        // combination exists — the real backend does exactly this.
+        // A pair that names nobody is refused outright, with the office
+        // number to call (officer direction, October 2026 — replacing the
+        // earlier decoy challenge). The real backend does the same.
+        if (!person) {
+          throw fail(
+            'not_found',
+            'These details do not match our records. Please contact the Al Barakah office on +230 5944 9797.'
+          );
+        }
         const id = nextId('otp');
         challenges.set(id, {
           id,

@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { API_MODE } from '@/api';
 import Constants from 'expo-constants';
 import { formatBuild } from '@/lib/build';
+import { useRootedDevice } from '@/lib/device';
 import { Banner, Button } from '@/ui';
 import { AnimatedLogo, FadeIn } from '@/ui/Logo';
 import { colors, spacing } from '@/ui/theme';
@@ -14,6 +15,7 @@ export default function Welcome() {
   // Why the person is back here, when the app brought them rather than
   // they chose it.
   const { reason } = useLocalSearchParams<{ reason?: string }>();
+  const rooted = useRootedDevice();
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.hero}>
@@ -28,6 +30,11 @@ export default function Welcome() {
           {reason === 'pin_locked' ? (
             <Banner tone="warning" title="This phone was signed out">
               Too many wrong PINs. Link your membership again to get back in.
+            </Banner>
+          ) : null}
+          {rooted ? (
+            <Banner tone="warning" title="This phone appears to be rooted">
+              A rooted phone can expose what the app keeps on it. Use the app on a phone you trust.
             </Banner>
           ) : null}
           <Button title="I'm already a member" onPress={() => router.push('/(auth)/link')} />
