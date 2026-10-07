@@ -4,6 +4,8 @@
 //
 // The barcode is a placeholder pattern until the Society settles the
 // symbology its partner outlets will scan (lib/barcode.ts).
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import React, { useState } from 'react';
 import { Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { ApiError, type Outlet } from '@/api';
@@ -12,6 +14,7 @@ import { useMe, useOutlets } from '@/hooks/queries';
 import { categoriesOf, categoryLabel, discountLabel } from '@/lib/outlets';
 import { Banner, Body, Card, Empty, Heading, Loading } from '@/ui';
 import { Barcode } from '@/ui/Barcode';
+import { EmbossedText } from '@/ui/Embossed';
 import { Logo } from '@/ui/Logo';
 import { colors, radius, spacing, type } from '@/ui/theme';
 
@@ -42,33 +45,53 @@ export default function MembershipCard() {
 
   return (
     <ScrollView contentContainerStyle={styles.content}>
-      <View style={styles.card} accessibilityLabel={`Al Barakah membership card, ${name}, member number ${profile.memberNo}`}>
-        <View style={styles.sheen} />
-        <View style={styles.sheenSmall} />
+      <LinearGradient
+        colors={['#146A57', '#0B443A', '#062A24']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.card}
+        accessibilityLabel={`Al Barakah membership card, ${name}, member number ${profile.memberNo}`}
+      >
+        {/* The light across the face: a band of it, as on a laminated card. */}
+        <View style={styles.sheenBand} />
+        <View style={styles.sheenSpot} />
+
         <View style={styles.cardHead}>
-          <Logo size={44} />
           <View style={{ flex: 1 }}>
-            <Text style={styles.brand}>Al Barakah</Text>
+            <Text style={styles.brand}>AL BARAKAH</Text>
             <Text style={styles.brandSub}>Multi-purpose Co-operative Society Ltd</Text>
           </View>
+          <Logo size={40} />
         </View>
+
+        <View style={styles.cardChipRow}>
+          <Chip />
+          <MaterialCommunityIcons name="contactless-payment" size={26} color="rgba(255,255,255,0.75)" />
+        </View>
+
         <View style={{ flex: 1 }} />
-        <Text style={styles.name} numberOfLines={1} adjustsFontSizeToFit>
-          {name}
-        </Text>
+
+        <EmbossedText size={nameSize(profile.memberNo, 22)} letterSpacing={3} style={styles.number}>
+          {profile.memberNo}
+        </EmbossedText>
+
         <View style={styles.cardFoot}>
-          <View>
-            <Text style={styles.fieldLabel}>MEMBER NO.</Text>
-            <Text style={styles.fieldValue}>{profile.memberNo}</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.fieldLabel}>MEMBER</Text>
+            <EmbossedText size={nameSize(name, 17)} letterSpacing={1.5}>
+              {name}
+            </EmbossedText>
           </View>
           {since ? (
-            <View style={{ alignItems: 'flex-end' }}>
-              <Text style={styles.fieldLabel}>MEMBER SINCE</Text>
-              <Text style={styles.fieldValue}>{since}</Text>
+            <View style={styles.since}>
+              <Text style={styles.fieldLabel}>SINCE</Text>
+              <EmbossedText size={15} letterSpacing={1}>
+                {String(since)}
+              </EmbossedText>
             </View>
           ) : null}
         </View>
-      </View>
+      </LinearGradient>
 
       <Card style={styles.barcode}>
         <Barcode value={profile.memberNo} />
@@ -85,9 +108,9 @@ export default function MembershipCard() {
 
       {categories.length > 1 ? (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chips} contentContainerStyle={styles.chipRow}>
-          <Chip label="All" selected={category === null} onPress={() => setCategory(null)} />
+          <FilterChip label="All" selected={category === null} onPress={() => setCategory(null)} />
           {categories.map(c => (
-            <Chip key={c} label={categoryLabel(c)} selected={category === c} onPress={() => setCategory(c)} />
+            <FilterChip key={c} label={categoryLabel(c)} selected={category === c} onPress={() => setCategory(c)} />
           ))}
         </ScrollView>
       ) : null}
@@ -99,7 +122,27 @@ export default function MembershipCard() {
   );
 }
 
-function Chip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
+// Embossed lettering cannot shrink to fit (three copies would each shrink
+// differently), so the size is chosen from the length instead.
+function nameSize(text: string, full: number): number {
+  if (text.length <= 16) return full;
+  if (text.length <= 22) return full - 3;
+  return full - 6;
+}
+
+// The contact plate, in gold, with the lines a real one has.
+function Chip() {
+  return (
+    <LinearGradient colors={['#F1D98A', '#C8A24C', '#A47F2C']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.cardChip}>
+      <View style={styles.chipLineH} />
+      <View style={[styles.chipLineH, { top: '66%' }]} />
+      <View style={styles.chipLineV} />
+      <View style={[styles.chipLineV, { left: '66%' }]} />
+    </LinearGradient>
+  );
+}
+
+function FilterChip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
   return (
     <Pressable
       onPress={onPress}
@@ -154,40 +197,50 @@ const styles = StyleSheet.create({
     aspectRatio: CARD_RATIO,
     width: '100%',
     borderRadius: radius.lg,
-    backgroundColor: colors.primaryDark,
     padding: spacing.lg,
     overflow: 'hidden',
     shadowColor: '#000',
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 8,
+    shadowOpacity: 0.3,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 10,
   },
-  sheen: {
+  sheenBand: {
     position: 'absolute',
-    right: -80,
-    top: -120,
-    width: 320,
-    height: 320,
-    borderRadius: 160,
-    backgroundColor: 'rgba(255,255,255,0.07)',
+    left: '30%',
+    top: -200,
+    width: 140,
+    height: 600,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    transform: [{ rotate: '28deg' }],
   },
-  sheenSmall: {
+  sheenSpot: {
     position: 'absolute',
-    left: -60,
-    bottom: -140,
-    width: 240,
-    height: 240,
-    borderRadius: 120,
-    backgroundColor: 'rgba(200,162,76,0.18)',
+    right: -90,
+    bottom: -150,
+    width: 260,
+    height: 260,
+    borderRadius: 130,
+    backgroundColor: 'rgba(200,162,76,0.14)',
   },
   cardHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  brand: { color: '#fff', fontSize: 18, fontWeight: '700' },
-  brandSub: { color: 'rgba(255,255,255,0.75)', fontSize: 11 },
-  name: { color: '#fff', fontSize: 18, fontWeight: '600', letterSpacing: 2, marginBottom: spacing.md },
-  cardFoot: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
-  fieldLabel: { color: 'rgba(255,255,255,0.65)', fontSize: 9, letterSpacing: 1.5 },
-  fieldValue: { color: colors.accent, fontSize: 18, fontWeight: '700', letterSpacing: 2, marginTop: 2 },
+  brand: { color: '#fff', fontSize: 17, fontWeight: '800', letterSpacing: 2.5 },
+  brandSub: { color: 'rgba(255,255,255,0.7)', fontSize: 10, marginTop: 2 },
+  cardChipRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginTop: spacing.md },
+  cardChip: {
+    width: 44,
+    height: 33,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.25)',
+    overflow: 'hidden',
+  },
+  chipLineH: { position: 'absolute', left: 0, right: 0, top: '33%', height: 1, backgroundColor: 'rgba(0,0,0,0.3)' },
+  chipLineV: { position: 'absolute', top: 0, bottom: 0, left: '33%', width: 1, backgroundColor: 'rgba(0,0,0,0.3)' },
+  number: { marginBottom: spacing.md },
+  cardFoot: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.md },
+  since: { alignItems: 'flex-end' },
+  fieldLabel: { color: 'rgba(255,255,255,0.6)', fontSize: 8, letterSpacing: 1.5, marginBottom: 3 },
   barcode: { paddingVertical: spacing.lg },
   chips: { marginHorizontal: -spacing.lg },
   chipRow: { paddingHorizontal: spacing.lg, gap: spacing.sm },

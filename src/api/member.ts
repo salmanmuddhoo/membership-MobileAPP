@@ -7,6 +7,7 @@ import type {
   Application,
   ChangeRequest,
   Dependent,
+  DeviceRegistration,
   FiledDocument,
   LinkMemberRequest,
   MemberProfile,
@@ -90,6 +91,17 @@ export function memberApi(transport: Transport) {
 
     // Where the membership card earns a discount, in the order to show it.
     outlets: (token: string) => call<Outlet[]>('/outlets', { token }),
+
+    // --- push notifications ------------------------------------------------
+    // This phone's push token, tied to the session. Idempotent: the same
+    // token again just refreshes it.
+    registerDevice: (token: string, device: DeviceRegistration) =>
+      call<{ ok: true }>('/me/devices', { method: 'POST', body: device, token }),
+
+    // Withdraw it, before signing out. The backend also disables every
+    // token of a session it revokes, so this is belt and braces.
+    unregisterDevice: (token: string, pushToken: string) =>
+      call<{ ok: true }>('/me/devices', { method: 'DELETE', body: { token: pushToken }, token }),
 
     // --- applications ----------------------------------------------------
     applications: (token: string) => call<Application[]>('/applications', { token }),

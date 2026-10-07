@@ -203,6 +203,8 @@ missing document — the app folds these onto the fields by that key.
 | GET | `/me/documents` | `FiledDocument[]` from `documentsForMember`: name, status, filed date, expiry. No download URL — `view-url` stays staff-only until a member-facing viewer is decided. The app no longer shows these; the endpoint stays for the day it does. |
 | GET | `/promotions` | `Promotion[]`: the cards on the home screen, live ones only, in order — `title`, `body`, `imageUrl`, `linkUrl`, `linkLabel`, `accent`. Written by an administrator on the web application's **Configuration → Member app** page. Any session, applicant included. The phone shows the picture alone (the title and text are the administrator's label and the screen reader's description), so a card without a picture is not shown. |
 | GET | `/outlets` | `Outlet[]`: where the membership card earns a discount — `name`, `logoUrl`, `category` (a lower-case tag such as `education`), `discountPercent` (decimal string), `description`, `address`, `linkUrl`, `isPartner` (pays the premium fee: shown on the home screen as well). Written on the web application's **Configuration → Member app** page; the Cards screen lists them with a filter per category. |
+| POST | `/me/devices` `{ token, platform, appBuild }` | This phone's Firebase push token, tied to the caller's session (`docs/push-notifications.md`). Sent on every start; the same token again refreshes it, a token that moves to another session moves with it. 422 without a token or a platform (`android` / `ios`). |
+| DELETE | `/me/devices` `{ token }` | Withdraws the token for the caller's own session; the app calls it before `logout`. Revoking a session disables every token of it regardless. Always 200. |
 
 ### Applications (`caller: 'member'`)
 

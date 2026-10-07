@@ -313,6 +313,7 @@ export function createMockTransport(): Transport {
 
   const challenges = new Map<string, Challenge>();
   const sessions = new Map<string, string>(); // accessToken -> mobile
+  const devices = new Map<string, string>();
   const refreshTokens = new Map<string, string>(); // refreshToken -> mobile
   const applications = new Map<string, Application>();
   const applicantOf = new Map<string, string>(); // applicationId -> mobile
@@ -621,6 +622,32 @@ export function createMockTransport(): Transport {
       method: 'GET',
       pattern: /^\/api\/v1\/member\/me$/,
       handle: (_, __, options) => personForSubject(requireSession(options)).profile,
+    },
+    // Push tokens: kept per session, never sent anywhere — the mock has no
+    // Firebase to send through. Here so the app's registration round-trips.
+    {
+      method: 'POST',
+      pattern: /^\/api\/v1\/member\/me\/devices$/,
+      handle: (_, body, options) => {
+        const subject = requireSession(options);
+        const token = String(body?.token ?? '');
+        const platform = String(body?.platform ?? '');
+        const details: Record<string, string[]> = {};
+        if (!token || token.length > 4096) details.token = ['A device token is required.'];
+        if (!['android', 'ios'].includes(platform)) details.platform = ['android or ios.'];
+        if (Object.keys(details).length > 0) throw fail('validation_failed', 'Check the details.', details);
+        devices.set(token, subject);
+        return { ok: true };
+      },
+    },
+    {
+      method: 'DELETE',
+      pattern: /^\/api\/v1\/member\/me\/devices$/,
+      handle: (_, body, options) => {
+        requireSession(options);
+        devices.delete(String(body?.token ?? ''));
+        return { ok: true };
+      },
     },
     {
       method: 'PUT',
