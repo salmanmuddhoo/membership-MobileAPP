@@ -85,6 +85,11 @@ Then in GitHub → Settings → Secrets and variables → Actions, add
 (`albarakah`) and `ANDROID_KEY_PASSWORD`. Keep the `.keystore` file safe:
 the same key is needed for every future build, including the Play Store.
 
+**Push notifications** need one more secret, `GOOGLE_SERVICES_JSON` — the
+Firebase project's `google-services.json` (`docs/push-notifications.md`).
+Without it the app builds and runs but receives no notifications, and the
+run summary says so.
+
 ## 2. Expo Go, for live development
 
 Install **Expo Go** from the Play Store. On a computer with Node 22:

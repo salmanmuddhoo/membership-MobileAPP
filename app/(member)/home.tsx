@@ -142,6 +142,9 @@ function openPartner(outlet: Outlet, fallback: () => void) {
   else fallback();
 }
 
+// The partner's logo is the tile: the picture fills it edge to edge, with
+// the name and the discount in a strip beneath (officer direction — the
+// earlier tile was mostly margin around a small logo).
 function PartnerTile({ outlet, onPress }: { outlet: Outlet; onPress: () => void }) {
   return (
     <Pressable
@@ -153,10 +156,12 @@ function PartnerTile({ outlet, onPress }: { outlet: Outlet; onPress: () => void 
       <View style={styles.partnerLogo}>
         <Image source={{ uri: outlet.logoUrl }} style={styles.partnerImage} resizeMode="contain" />
       </View>
-      <Text style={styles.partnerName} numberOfLines={1}>
-        {outlet.name}
-      </Text>
-      <Text style={styles.partnerDiscount}>{discountLabel(outlet.discountPercent)}</Text>
+      <View style={styles.partnerStrip}>
+        <Text style={styles.partnerName} numberOfLines={1}>
+          {outlet.name}
+        </Text>
+        <Text style={styles.partnerDiscount}>{discountLabel(outlet.discountPercent)}</Text>
+      </View>
     </Pressable>
   );
 }
@@ -184,27 +189,34 @@ const styles = StyleSheet.create({
   totalHint: { color: 'rgba(255,255,255,0.75)', fontSize: 13, marginTop: spacing.xs },
   partners: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
   partner: {
-    width: '30%',
+    width: '47%',
     flexGrow: 1,
     backgroundColor: colors.surface,
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.border,
-    padding: spacing.md,
-    alignItems: 'center',
-    gap: spacing.xs,
+    overflow: 'hidden',
   },
-  partnerPressed: { backgroundColor: colors.primarySoft },
+  partnerPressed: { borderColor: colors.primary },
   partnerLogo: {
-    width: 56,
-    height: 56,
-    borderRadius: radius.md,
+    width: '100%',
+    aspectRatio: 1.35,
     backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
+    padding: spacing.sm,
   },
-  partnerImage: { width: 48, height: 48 },
-  partnerName: { ...type.label, textAlign: 'center' },
+  partnerImage: { width: '100%', height: '100%' },
+  partnerStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs + 2,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  partnerName: { ...type.label, fontSize: 13, flex: 1 },
   partnerDiscount: { fontSize: 12, fontWeight: '700', color: colors.primary },
 });

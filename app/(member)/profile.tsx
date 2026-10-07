@@ -105,17 +105,18 @@ export default function Profile() {
           onPress={() => router.push('/details-edit')}
           disabled={!!profile.pendingUpdate}
         />
-      ) : (
-        <Body muted>All your details are on record. To change any of them, visit a branch with your ID.</Body>
-      )}
+      ) : null}
       <Spacer size="xl" />
-      <Body muted>Signed in as {session ? forDisplay(session.identity.mobile) : ''}</Body>
-      <Spacer size="sm" />
       <Button title="Sign out" variant="ghost" onPress={confirmSignOut} />
+      <Spacer size="sm" />
+      <Body muted style={styles.signedInAs}>
+        Signed in as {session ? forDisplay(session.identity.mobile) : ''}
+      </Body>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   content: { padding: spacing.lg, paddingBottom: spacing.xxl },
+  signedInAs: { textAlign: 'center' },
 });

@@ -40,6 +40,8 @@ build refuses anything else) and `EXPO_PUBLIC_API_MODE=live`.
 Security measures and what is still open: [`docs/security.md`](docs/security.md).
 Getting on to Google Play: [`docs/play-store.md`](docs/play-store.md), with
 the privacy policy to publish in [`docs/privacy-policy.md`](docs/privacy-policy.md).
+Push notifications (a deposit posted, a new partner…) need one Firebase
+project, shared with the backend: [`docs/push-notifications.md`](docs/push-notifications.md).
 
 ```bash
 npm run typecheck  # tsc

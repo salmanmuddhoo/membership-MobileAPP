@@ -9,6 +9,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ApiError } from '@/api';
 import { AuthProvider, useAuth } from '@/auth/AuthContext';
 import { LockGate } from '@/auth/LockGate';
+import { PushRegistration } from '@/push/PushRegistration';
 import { BalanceVisibilityProvider } from '@/store/balances';
 import { colors } from '@/ui/theme';
 
@@ -42,6 +43,12 @@ function ScreenGuard() {
 function GuardWhenSignedIn() {
   const { session } = useAuth();
   return session ? <ScreenGuard /> : null;
+}
+
+// Push notifications need a session to register against (docs/push-notifications.md).
+function PushWhenSignedIn() {
+  const { session } = useAuth();
+  return session ? <PushRegistration /> : null;
 }
 
 function HideSplashWhenReady() {
@@ -82,6 +89,7 @@ export default function RootLayout() {
             <LockGate />
             <HideSplashWhenReady />
             <GuardWhenSignedIn />
+            <PushWhenSignedIn />
             </BalanceVisibilityProvider>
           </AuthProvider>
         </QueryClientProvider>

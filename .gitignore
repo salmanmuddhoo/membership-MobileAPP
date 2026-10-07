@@ -43,3 +43,6 @@ yarn-error.*
 # local environment
 .env
 .env.local
+
+# Firebase: written by CI from a secret, never committed (docs/push-notifications.md)
+google-services.json

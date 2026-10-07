@@ -328,3 +328,14 @@ export interface ApiSuccess<T> {
   data: T;
   correlationId: string;
 }
+
+// This phone, as the backend's push notifications know it
+// (docs/member-api.md, /me/devices). The token is Firebase's and can only
+// receive; the backend ties it to the session that registered it.
+export interface DeviceRegistration {
+  token: string;
+  platform: 'android' | 'ios';
+  // The app version, so a wording that only a newer app can act on can be
+  // held back one day. Null when unknown.
+  appBuild: string | null;
+}

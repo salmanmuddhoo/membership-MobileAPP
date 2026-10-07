@@ -28,6 +28,7 @@ import React, {
 } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
 import { api, ApiError, type Session } from '../api';
+import { forgetPushToken, registeredPushToken } from '../push/PushRegistration';
 import { attemptsLeft, MAX_PIN_ATTEMPTS, type PinRecord } from './pin';
 import { loadPinRecord, newPinRecord, pinMatches, savePinRecord } from './pin-store';
 import { loadSession, saveSession } from './session-store';
@@ -132,8 +133,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await applyPin(null);
     await applySession(null);
     if (current) {
-      // Best effort: the tokens are gone locally either way.
-      api.logout(current.accessToken, current.refreshToken).catch(() => undefined);
+      // Best effort: the tokens are gone locally either way. The push token
+      // goes first, while the access token can still vouch for it; the
+      // backend disables it with the session regardless.
+      const pushToken = registeredPushToken();
+      forgetPushToken();
+      const withdraw = pushToken
+        ? api.unregisterDevice(current.accessToken, pushToken).catch(() => undefined)
+        : Promise.resolve();
+      withdraw.then(() => api.logout(current.accessToken, current.refreshToken).catch(() => undefined));
     }
   }, [applyPin, applySession]);
 

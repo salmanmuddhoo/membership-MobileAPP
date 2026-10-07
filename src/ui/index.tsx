@@ -64,8 +64,16 @@ export function Title({ children }: { children: React.ReactNode }) {
 export function Heading({ children }: { children: React.ReactNode }) {
   return <Text style={[type.heading, styles.heading]}>{children}</Text>;
 }
-export function Body({ children, muted }: { children: React.ReactNode; muted?: boolean }) {
-  return <Text style={muted ? type.small : type.body}>{children}</Text>;
+export function Body({
+  children,
+  muted,
+  style,
+}: {
+  children: React.ReactNode;
+  muted?: boolean;
+  style?: StyleProp<TextStyle>;
+}) {
+  return <Text style={[muted ? type.small : type.body, style]}>{children}</Text>;
 }
 
 export function Card({
