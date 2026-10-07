@@ -63,10 +63,16 @@ Pushing a tag that starts with `v` (for example `v0.1.0`) also runs this
 workflow and attaches the APK to a **GitHub Release**, which gives you a
 download link you can send to anyone.
 
-**About the signing key.** An Android app must be signed. Without further
-setup the workflow signs each build with a throwaway key, so to install a
-newer build you first uninstall the older one. To make builds update in
-place, generate one key and store it as repository secrets:
+**About the signing key — and updating without uninstalling.** An Android
+app must be signed, and Android only ever updates an app with a build
+signed by the *same* key. Without further setup the workflow signs each
+build with a throwaway key, so every new build is a stranger to the phone
+and the old one must be uninstalled first (which also wipes the session
+and the PIN). This is the one thing standing between you and in-place
+updates: generate one key, store it as the four repository secrets below,
+and from then on every build installs over the last, keeping the session,
+the PIN and everything else. The same key is what Google Play will know as
+the upload key (`docs/play-store.md`).
 
 ```bash
 keytool -genkeypair -v -keystore albarakah.keystore -alias albarakah \

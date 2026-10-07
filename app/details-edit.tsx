@@ -1,7 +1,8 @@
-// A member capturing their own details.
+// A member completing their own details.
 //
 // The same form the officer captures with, rendered from the same field
-// configuration, pre-filled with what is on record. It does not change the
+// configuration — but only the fields with nothing on record (officer
+// direction: what is on record changes at a branch). It does not change the
 // record directly: what is sent is a change request that staff verify
 // (docs/member-api.md, "Why a change request"), so the member sees "pending"
 // until they do.
@@ -11,7 +12,7 @@ import { Text } from 'react-native';
 import { ApiError } from '@/api';
 import { PartyForm } from '@/forms/PartyForm';
 import { usePartyValues } from '@/forms/usePartyValues';
-import { isMemberSubject, partyTitle, subjectsOf, validateAll } from '@/forms/validate';
+import { fieldPath, isMemberSubject, missingKeys, partyTitle, subjectsOf, validateAll } from '@/forms/validate';
 import { useMe, useReference, useSubmitDetails } from '@/hooks/queries';
 import { notify } from '@/lib/dialog';
 import { Banner, Body, Button, Empty, Heading, Loading, Screen } from '@/ui';
@@ -45,10 +46,19 @@ function DetailsForm({
   const shown = form.parties.filter(p => isMemberSubject(p.subject));
   const counts = new Map<string, number>();
   for (const p of shown) counts.set(p.subject, (counts.get(p.subject) ?? 0) + 1);
+  // What was empty when the form opened is what the member may fill in;
+  // the rest goes back exactly as it is on record and is not checked.
+  const [editable] = useState(() => new Map(initial.map(p => [`${p.subject}.${p.ordinal}`, missingKeys(membershipType, p)])));
+  const editableKeys = (p: { subject: string; ordinal: number }) => editable.get(`${p.subject}.${p.ordinal}`) ?? [];
 
   async function send() {
     setProblem(null);
-    const found = validateAll(membershipType, shown);
+    const all = validateAll(membershipType, shown);
+    const found = Object.fromEntries(
+      Object.entries(all).filter(([path]) =>
+        shown.some(p => editableKeys(p).some(k => fieldPath(p.subject, p.ordinal, k) === path))
+      )
+    );
     form.setErrors(found);
     if (Object.keys(found).length > 0) {
       setProblem('Some details need attention. Check the fields marked in red.');
@@ -75,26 +85,29 @@ function DetailsForm({
       }
     >
       <Body muted>
-        Check each section and correct anything that has changed. Staff verify the details before your record changes.
+        Fill in what is missing from your record. Staff verify the details before your record changes; what is already on record changes at a branch.
       </Body>
       {problem ? <Banner tone="danger">{problem}</Banner> : null}
       {subjects.map(subject =>
         form.parties
-          .filter(p => p.subject === subject)
+          .filter(p => p.subject === subject && editableKeys(p).length > 0)
           .map(party => (
             <React.Fragment key={`${party.subject}-${party.ordinal}`}>
-              <Heading>{partyTitle(party.subject, party.ordinal, counts.get(party.subject) ?? 1)}</Heading>
+              {party.subject === 'applicant' ? null : (
+                <Heading>{partyTitle(party.subject, party.ordinal, counts.get(party.subject) ?? 1)}</Heading>
+              )}
               <PartyForm
                 type={membershipType}
                 party={party}
                 errors={form.errors}
                 readOnlyKeys={party.subject === 'applicant' ? ['mobile'] : []}
+                onlyKeys={editableKeys(party)}
                 onChange={(k, v) => form.setValue(party.subject, party.ordinal, k, v)}
               />
             </React.Fragment>
           ))
       )}
-      <Text style={type.small}>To change the mobile number you sign in with, visit a branch with your ID.</Text>
+      <Text style={type.small}>To change anything already on record, including the mobile number you sign in with, visit a branch with your ID.</Text>
     </Screen>
   );
 }

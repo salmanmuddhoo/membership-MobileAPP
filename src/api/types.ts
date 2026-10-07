@@ -92,6 +92,8 @@ export interface Outlet {
   description: string;
   address: string | null;
   linkUrl: string | null;
+  // Pays the premium fee: shown on the home screen as well as on Cards.
+  isPartner: boolean;
 }
 
 // A card on the home screen: something the Society is promoting. Written
@@ -201,6 +203,10 @@ export interface AccountSummary {
   openedAt: string;
   // Decimal string. Null when the ledger behind this account cannot state one.
   balance: string | null;
+  // Entries recorded against the account. An account with none is not
+  // shown (officer direction): a savings account opened on approval sits
+  // empty until the first deposit.
+  transactionCount: number;
 }
 
 // A minor the signed-in member is guardian of, with the minor's accounts. The

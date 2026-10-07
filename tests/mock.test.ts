@@ -31,25 +31,18 @@ test('NIC + AB Number identify the member; the code goes to the number on record
   assert.equal(session.identity.mobile, '+23057891234');
 });
 
-test('a NIC and AB Number that do not belong to one active member get the same answer, and open nothing', async () => {
+test('a NIC and AB Number that do not belong to one active member are refused, with the office to call', async () => {
   const api = memberApi(createMockTransport());
   for (const pair of [
     { nic: 'P1503881234567', abNumber: 'AB0002' },
     { nic: 'X0000000000000', abNumber: 'AB0001' },
   ]) {
-    const miss = await api.linkMember(pair);
-    assert.equal(miss.purpose, 'link_member');
-    assert.equal(miss.sentTo, null);
-    await assert.rejects(api.verifyOtp(miss.challengeId, '123456'), (e: unknown) => {
-      assert.ok(e instanceof ApiError && e.code === 'validation_failed');
+    await assert.rejects(api.linkMember(pair), (e: unknown) => {
+      assert.ok(e instanceof ApiError && e.code === 'not_found');
+      assert.match(e.message, /\+230 5944 9797/);
       return true;
     });
   }
-  await assert.rejects(api.linkMember({ nic: 'bad', abNumber: '1' }), (e: unknown) => {
-    assert.ok(e instanceof ApiError && e.code === 'validation_failed');
-    assert.ok(e.details.nic && e.details.abNumber);
-    return true;
-  });
 });
 
 test("a member's own mobile used for sign-up yields only an applicant session", async () => {

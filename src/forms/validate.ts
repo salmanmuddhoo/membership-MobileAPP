@@ -40,6 +40,15 @@ export function isMemberSubject(subject: FieldSubject): boolean {
   return MEMBER_SUBJECTS.includes(subject);
 }
 
+// The visible fields of a party with nothing on record: the only ones a
+// member may fill in from the phone (officer direction). What is on record
+// changes at a branch.
+export function missingKeys(type: MembershipType, party: PartyValues): string[] {
+  return visibleFields(type, party.subject)
+    .filter(f => !(party.values[f.fieldKey] ?? '').trim())
+    .map(f => f.fieldKey);
+}
+
 export function subjectsOf(type: MembershipType): FieldSubject[] {
   const seen: FieldSubject[] = [];
   for (const f of type.fields) {

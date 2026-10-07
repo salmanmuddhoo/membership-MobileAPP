@@ -34,8 +34,12 @@ backend** that implements the whole contract in memory. Nothing to set up:
 | Become a member      | any mobile, e.g. `5999 0000`             | `123456` |
 
 To point at a real backend, copy `.env.example` to `.env` and set
-`EXPO_PUBLIC_API_URL` (the web application's origin) and
-`EXPO_PUBLIC_API_MODE=live`.
+`EXPO_PUBLIC_API_URL` (the web application's origin, `https://` — a live
+build refuses anything else) and `EXPO_PUBLIC_API_MODE=live`.
+
+Security measures and what is still open: [`docs/security.md`](docs/security.md).
+Getting on to Google Play: [`docs/play-store.md`](docs/play-store.md), with
+the privacy policy to publish in [`docs/privacy-policy.md`](docs/privacy-policy.md).
 
 ```bash
 npm run typecheck  # tsc
@@ -159,13 +163,15 @@ if the decision goes the other way.
 ## Screens, in order
 
 Welcome → Link my membership (NIC + AB Number) → Code → Choose a PIN →
-**Home** (total balance, the Society's promotion cards, shortcuts) ·
+**Home** (total balance, the Society's promotion cards, its partners) ·
 **Accounts** (a balance per account, own and minors' apart, hide / show) →
 account → transactions · **Cards** (the membership card: name, Member No.,
 barcode; the partner outlets where it earns a discount, by category) · **Transact** (deposit, withdrawal, transfer — coming) · **My
-details** (the applicant's and guardian's details; employment and nominees
-stay a branch matter) → Complete / update my details → sent for
-verification. Opening the app again asks for the PIN, never the code; five
+details** (the member's own details and, for a minor, the guardian's;
+employment and nominees stay a branch matter) → Complete my details (only
+what is missing; what is on record changes at a branch) → sent for
+verification. A NIC + AB Number the Society does not recognise stops at
+the sign-in screen with the office number to call. Opening the app again asks for the PIN, never the code; five
 wrong PINs sign the phone out. A member has no Applications tab — that is
 for an applicant.
 

@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
+import { usePreventScreenCapture } from 'expo-screen-capture';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
@@ -28,6 +29,20 @@ const queryClient = new QueryClient({
 // never a blank frame and a spinner in between.
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
 SplashScreen.setOptions({ duration: 400, fade: true });
+
+// Balances, the card and personal details never reach a screenshot or a
+// screen recording while someone is signed in (Android FLAG_SECURE; iOS
+// hides the content). Mounted only with a session, so the welcome and
+// sign-in screens stay capturable for support.
+function ScreenGuard() {
+  usePreventScreenCapture('signed-in');
+  return null;
+}
+
+function GuardWhenSignedIn() {
+  const { session } = useAuth();
+  return session ? <ScreenGuard /> : null;
+}
 
 function HideSplashWhenReady() {
   const { ready } = useAuth();
@@ -66,6 +81,7 @@ export default function RootLayout() {
             </Stack>
             <LockGate />
             <HideSplashWhenReady />
+            <GuardWhenSignedIn />
             </BalanceVisibilityProvider>
           </AuthProvider>
         </QueryClientProvider>

@@ -1,7 +1,8 @@
-// Every account the person can see: their own, then those of the minors in
-// their care, told apart on sight. A balance each, nothing else — the
-// account number, status and opening date are branch matters (officer
-// direction). Tap one for its transactions.
+// Every account the person can see with something recorded against it:
+// their own, then those of the minors in their care, told apart on sight.
+// A balance each, nothing else — the account number, status and opening
+// date are branch matters (officer direction). Tap one for its
+// transactions.
 import { useRouter } from 'expo-router';
 import React from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -26,8 +27,13 @@ export default function Accounts() {
       </ScrollView>
     );
   }
-  const own = accounts.data ?? [];
-  const minors = dependents.data ?? [];
+  // An account with nothing recorded against it yet is not shown (officer
+  // direction): a savings account opened on approval sits empty until the
+  // first deposit, and until then it is noise.
+  const own = (accounts.data ?? []).filter(hasActivity);
+  const minors = (dependents.data ?? [])
+    .map(m => ({ ...m, accounts: m.accounts.filter(hasActivity) }))
+    .filter(m => m.accounts.length > 0);
   if (own.length === 0 && minors.length === 0) {
     return (
       <Empty title="No accounts">
@@ -86,6 +92,10 @@ export default function Accounts() {
       ))}
     </ScrollView>
   );
+}
+
+function hasActivity(account: AccountSummary): boolean {
+  return account.transactionCount > 0;
 }
 
 function AccountCard({ account, minor, onPress }: { account: AccountSummary; minor?: boolean; onPress: () => void }) {

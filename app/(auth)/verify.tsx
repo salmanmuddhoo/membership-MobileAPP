@@ -70,7 +70,7 @@ export default function Verify() {
       <Title>Enter the code</Title>
       <Body muted>
         {params.purpose === 'link_member'
-          ? 'If your NIC and AB Number match an active member, a code has been sent by SMS to the mobile on that record. Nothing arriving in a minute or two means the details did not match, or the number on record is no longer yours. Check them, or visit a branch with your ID.'
+          ? 'A code has been sent by SMS to the mobile number on your membership record. If nothing arrives in a minute or two, the number on record may no longer be yours: contact the Al Barakah office on +230 5944 9797.'
           : `Sent by SMS to ${sentTo ?? 'your mobile'}.`}
       </Body>
       <Spacer size="xl" />
