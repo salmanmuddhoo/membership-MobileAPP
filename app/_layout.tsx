@@ -85,6 +85,9 @@ export default function RootLayout() {
                 options={{ title: 'Account' }}
               />
               <Stack.Screen name="details-edit" options={{ title: 'My details' }} />
+              <Stack.Screen name="transact/deposit" options={{ title: 'Deposit' }} />
+              <Stack.Screen name="transact/withdrawal" options={{ title: 'Withdrawal' }} />
+              <Stack.Screen name="transact/transfer" options={{ title: 'Transfer' }} />
             </Stack>
             <LockGate />
             <HideSplashWhenReady />

@@ -1,7 +1,7 @@
 // Server state, through React Query. Keys are listed here so a mutation can
 // invalidate exactly what it changed.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, type PartyValues } from '../api';
+import { api, type DepositInput, type PartyValues, type TransferInput, type WithdrawalInput } from '../api';
 import { useAuth } from '../auth/AuthContext';
 
 export const keys = {
@@ -13,6 +13,8 @@ export const keys = {
   dependentTransactions: (dependentId: string, accountId: string) =>
     ['dependents', dependentId, 'accounts', accountId, 'transactions'] as const,
   promotions: ['promotions'] as const,
+  requests: ['requests'] as const,
+  balance: (accountId: string) => ['accounts', accountId, 'balance'] as const,
   outlets: ['outlets'] as const,
   applications: ['applications'] as const,
   application: (id: string) => ['applications', id] as const,
@@ -156,4 +158,53 @@ export function useDeleteDraft() {
     mutationFn: (id: string) => withToken(t => api.deleteDraft(t, id)),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.applications }),
   });
+}
+
+// --- moving money -------------------------------------------------------------
+
+// What the member asked for from the app, and where each stands.
+export function useRequests() {
+  const { withToken, session } = useAuth();
+  return useQuery({
+    queryKey: keys.requests,
+    queryFn: () => withToken(t => api.requests(t)),
+    enabled: !!session,
+  });
+}
+
+// What a withdrawal or transfer from this account can draw on.
+export function useAccountBalance(accountId: string | null) {
+  const { withToken, session } = useAuth();
+  return useQuery({
+    queryKey: keys.balance(accountId ?? ''),
+    queryFn: () => withToken(t => api.accountBalance(t, accountId!)),
+    enabled: !!session && !!accountId,
+  });
+}
+
+// A request changes the list of requests and, once an officer acts, the
+// balances: both are refetched.
+function useMoneyMutation<I>(send: (token: string, input: I, key: string) => Promise<unknown>) {
+  const { withToken } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ input, idempotencyKey }: { input: I; idempotencyKey: string }) =>
+      withToken(t => send(t, input, idempotencyKey)),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.requests });
+      qc.invalidateQueries({ queryKey: keys.accounts });
+    },
+  });
+}
+
+export function useDeposit() {
+  return useMoneyMutation<DepositInput>(api.deposit);
+}
+
+export function useWithdrawal() {
+  return useMoneyMutation<WithdrawalInput>(api.withdraw);
+}
+
+export function useTransfer() {
+  return useMoneyMutation<TransferInput>(api.transfer);
 }

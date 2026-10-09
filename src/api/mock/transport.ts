@@ -23,6 +23,7 @@ import type {
   Dependent,
   FiledDocument,
   MemberProfile,
+  MemberRequest,
   MembershipType,
   Outlet,
   PartyValues,
@@ -306,6 +307,17 @@ const OUTLETS: Outlet[] = [
   },
 ];
 
+const BANK_ACCOUNTS = [
+  { id: 'bank-mcb', name: 'MCB current account', bankName: 'MCB' },
+  { id: 'bank-sbm', name: 'SBM savings account', bankName: 'SBM' },
+];
+
+const DEPOSIT_METHODS = [
+  { code: 'bank_transfer', name: 'Bank transfer', requiresReference: true, touchesBank: true },
+  { code: 'juice', name: 'MCB Juice', requiresReference: true, touchesBank: true },
+  { code: 'cheque', name: 'Cheque', requiresReference: true, touchesBank: true },
+];
+
 export function createMockTransport(): Transport {
   const people = new Map<string, Person>();
   const member = seedMember();
@@ -326,6 +338,133 @@ export function createMockTransport(): Transport {
 
   const fail = (code: ApiError['code'], message: string, details?: Record<string, string[]>) =>
     new ApiError(code, message, `mock::${Date.now().toString(36)}`, details ?? {}, null);
+
+  // --- moving money ---------------------------------------------------------
+  // Nothing here ever approves: the mock has no officers, so a request
+  // stays "Pending approval", exactly as it would until one acts.
+  const requests = new Map<string, MemberRequest[]>();
+  const byKey = new Map<string, MemberRequest>();
+  let txSerial = 1200;
+
+  function ownAccount(person: Person, id: string): AccountSummary {
+    const account = person.accounts.find(a => a.id === id);
+    if (!account) throw fail('not_found', 'No such account.');
+    return account;
+  }
+
+  // The balance less every withdrawal and transfer still on its way out.
+  function available(person: Person, account: AccountSummary): string {
+    const cents = (v: string | null) => Math.round(Number(v ?? '0') * 100);
+    const out = (requests.get(person.id) ?? [])
+      .filter(r => r.accountId === account.id && r.kind !== 'deposit' && (r.state === 'pending' || r.state === 'approved'))
+      .reduce((sum, r) => sum + cents(r.amount), 0);
+    return (Math.max(0, cents(account.balance) - out) / 100).toFixed(2);
+  }
+
+  function checkedAmount(raw: unknown, limit?: string): string {
+    const text = String(raw ?? '').trim();
+    if (!/^\d{1,12}(\.\d{1,2})?$/.test(text) || Number(text) <= 0) {
+      throw fail('validation_failed', 'Check the amount.', { amount: ['Rupees, at most two decimals, above zero.'] });
+    }
+    if (limit !== undefined && Number(text) > Number(limit)) {
+      throw fail('validation_failed', 'That is more than the account has available.', {
+        amount: [`Rs ${limit} is available.`],
+      });
+    }
+    return Number(text).toFixed(2);
+  }
+
+  // The same Idempotency-Key is the same request, as the backend has it.
+  function once(options: RequestOptions, make: () => MemberRequest): MemberRequest {
+    const key = options.idempotencyKey;
+    if (!key) throw fail('validation_failed', 'An Idempotency-Key header is required.');
+    const seen = byKey.get(key);
+    if (seen) return seen;
+    const made = make();
+    byKey.set(key, made);
+    return made;
+  }
+
+  function file(
+    person: Person,
+    r: {
+      kind: MemberRequest['kind'];
+      account: AccountSummary;
+      counterpart?: AccountSummary;
+      amount: string;
+      methodName?: string;
+      note: string;
+      stage: string;
+    }
+  ): MemberRequest {
+    txSerial += 1;
+    const request: MemberRequest = {
+      id: nextId('tx'),
+      reference: `${r.kind === 'transfer' ? 'TR' : 'TX'}-${String(txSerial).padStart(6, '0')}`,
+      kind: r.kind,
+      state: 'pending',
+      statusLabel: 'Pending approval',
+      stage: r.stage,
+      amount: r.amount,
+      currency: 'MUR',
+      accountId: r.account.id,
+      accountNo: r.account.accountNo,
+      accountTypeName: r.account.typeName,
+      counterpartAccountNo: r.counterpart?.accountNo ?? null,
+      counterpartAccountTypeName: r.counterpart?.typeName ?? null,
+      methodName: r.methodName ?? null,
+      note: r.note,
+      reason: null,
+      createdAt: iso(new Date()),
+      completedAt: null,
+    };
+    requests.set(person.id, [...(requests.get(person.id) ?? []), request]);
+    return request;
+  }
+
+  // Two past requests, so the list shows what a finished one looks like.
+  requests.set(member.id, [
+    {
+      id: 'tx-seed-1',
+      reference: 'TX-001101',
+      kind: 'deposit',
+      state: 'completed',
+      statusLabel: 'Completed',
+      stage: null,
+      amount: '2000.00',
+      currency: 'MUR',
+      accountId: 'acc-msa',
+      accountNo: 'MSA-000001',
+      accountTypeName: 'Multiplier Savings Account',
+      counterpartAccountNo: null,
+      counterpartAccountTypeName: null,
+      methodName: 'Bank transfer',
+      note: '',
+      reason: null,
+      createdAt: daysAgo(30),
+      completedAt: daysAgo(29),
+    },
+    {
+      id: 'tx-seed-2',
+      reference: 'TX-001102',
+      kind: 'withdrawal',
+      state: 'declined',
+      statusLabel: 'Not approved',
+      stage: null,
+      amount: '9000.00',
+      currency: 'MUR',
+      accountId: 'acc-msa',
+      accountNo: 'MSA-000001',
+      accountTypeName: 'Multiplier Savings Account',
+      counterpartAccountNo: null,
+      counterpartAccountTypeName: null,
+      methodName: null,
+      note: '',
+      reason: 'Please call the office to arrange a withdrawal of this size.',
+      createdAt: daysAgo(12),
+      completedAt: null,
+    },
+  ]);
 
   function requireSession(options: RequestOptions): string {
     const subject = options.token ? sessions.get(options.token) : undefined;
@@ -494,7 +633,110 @@ export function createMockTransport(): Transport {
     {
       method: 'GET',
       pattern: /^\/api\/v1\/member\/reference$/,
-      handle: () => ({ membershipTypes: MEMBERSHIP_TYPES.filter(t => t.isActive) }),
+      handle: () => ({
+        membershipTypes: MEMBERSHIP_TYPES.filter(t => t.isActive),
+        bankAccounts: BANK_ACCOUNTS,
+        // All three on, so the app can be tried end to end. The real
+        // backend has none on until the Society switches them on.
+        enabledOperations: ['deposit', 'withdrawal', 'transfer'],
+        depositMethods: DEPOSIT_METHODS,
+      }),
+    },
+    // --- moving money: every request waits for officers ----------------
+    {
+      method: 'GET',
+      pattern: /^\/api\/v1\/member\/me\/transactions$/,
+      handle: (_, __, options) => {
+        const person = personForSubject(requireSession(options));
+        return [...(requests.get(person.id) ?? [])].reverse();
+      },
+    },
+    {
+      method: 'GET',
+      pattern: /^\/api\/v1\/member\/me\/accounts\/([^/]+)\/balance$/,
+      handle: ([, id], __, options) => {
+        const person = personForSubject(requireSession(options));
+        const account = ownAccount(person, id);
+        return {
+          accountId: account.id,
+          balance: account.balance ?? '0.00',
+          available: available(person, account),
+          currency: 'MUR',
+        };
+      },
+    },
+    {
+      method: 'POST',
+      pattern: /^\/api\/v1\/member\/me\/deposits$/,
+      handle: (_, body, options) => {
+        const person = personForSubject(requireSession(options));
+        return {
+          deposit: once(options, () => {
+            const account = ownAccount(person, String(body?.accountId ?? ''));
+            const amount = checkedAmount(body?.amount);
+            const method = DEPOSIT_METHODS.find(m => m.code === body?.method);
+            const details: Record<string, string[]> = {};
+            if (!method) details.method = ['Choose how it was paid; never cash.'];
+            if (method?.requiresReference && !String(body?.methodReference ?? '').trim()) {
+              details.methodReference = ['Give the transfer reference.'];
+            }
+            if (method?.touchesBank && !BANK_ACCOUNTS.some(b => b.id === body?.bankAccountId)) {
+              details.bankAccountId = ["Choose which of the Society's bank accounts it reached."];
+            }
+            if (Object.keys(details).length > 0) throw fail('validation_failed', 'Check the details.', details);
+            return file(person, {
+              kind: 'deposit',
+              account,
+              amount,
+              methodName: method!.name,
+              note: String(body?.reason ?? ''),
+              stage: 'Being verified by the accounts department',
+            });
+          }),
+        };
+      },
+    },
+    {
+      method: 'POST',
+      pattern: /^\/api\/v1\/member\/me\/withdrawals$/,
+      handle: (_, body, options) => {
+        const person = personForSubject(requireSession(options));
+        return {
+          withdrawal: once(options, () => {
+            const account = ownAccount(person, String(body?.accountId ?? ''));
+            const amount = checkedAmount(body?.amount, available(person, account));
+            return file(person, { kind: 'withdrawal', account, amount, note: String(body?.reason ?? ''), stage: 'With the Secretary' });
+          }),
+        };
+      },
+    },
+    {
+      method: 'POST',
+      pattern: /^\/api\/v1\/member\/me\/transfers$/,
+      handle: (_, body, options) => {
+        const person = personForSubject(requireSession(options));
+        return {
+          transfer: once(options, () => {
+            const account = ownAccount(person, String(body?.sourceAccountId ?? ''));
+            const destination = person.accounts.find(a => a.id === body?.destinationAccountId);
+            if (!destination) throw fail('not_found', 'No such account.');
+            if (destination.id === account.id) {
+              throw fail('validation_failed', 'Choose two different accounts.', {
+                destinationAccountId: ['Choose a different account.'],
+              });
+            }
+            const amount = checkedAmount(body?.amount, available(person, account));
+            return file(person, {
+              kind: 'transfer',
+              account,
+              counterpart: destination,
+              amount,
+              note: String(body?.reason ?? ''),
+              stage: 'With the Secretary',
+            });
+          }),
+        };
+      },
     },
     {
       method: 'POST',

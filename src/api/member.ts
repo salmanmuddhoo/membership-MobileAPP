@@ -2,22 +2,27 @@
 // strings here are the contract in docs/member-api.md.
 import type { RequestOptions, Transport } from './client';
 import type {
+  AccountBalance,
   AccountSummary,
   AccountTransaction,
   Application,
   ChangeRequest,
+  DepositInput,
   Dependent,
   DeviceRegistration,
   FiledDocument,
   LinkMemberRequest,
   MemberProfile,
+  MemberRequest,
   OtpChallenge,
   Outlet,
   PartyValues,
   Promotion,
   Reference,
   Session,
+  TransferInput,
   UploadTicket,
+  WithdrawalInput,
 } from './types';
 
 const base = '/api/v1/member';
@@ -91,6 +96,25 @@ export function memberApi(transport: Transport) {
 
     // Where the membership card earns a discount, in the order to show it.
     outlets: (token: string) => call<Outlet[]>('/outlets', { token }),
+
+    // --- moving money ------------------------------------------------------
+    // Every request goes to officers for validation (never straight onto
+    // the ledger) and is listed by requests() as "Pending approval" until
+    // they decide. The idempotency key is the form's own: the same key
+    // again is the same request.
+    requests: (token: string) => call<MemberRequest[]>('/me/transactions', { token }),
+
+    accountBalance: (token: string, accountId: string) =>
+      call<AccountBalance>(`/me/accounts/${encodeURIComponent(accountId)}/balance`, { token }),
+
+    deposit: (token: string, input: DepositInput, idempotencyKey: string) =>
+      call<unknown>('/me/deposits', { method: 'POST', body: input, token, idempotencyKey }),
+
+    withdraw: (token: string, input: WithdrawalInput, idempotencyKey: string) =>
+      call<unknown>('/me/withdrawals', { method: 'POST', body: input, token, idempotencyKey }),
+
+    transfer: (token: string, input: TransferInput, idempotencyKey: string) =>
+      call<unknown>('/me/transfers', { method: 'POST', body: input, token, idempotencyKey }),
 
     // --- push notifications ------------------------------------------------
     // This phone's push token, tied to the session. Idempotent: the same
