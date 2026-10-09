@@ -81,6 +81,13 @@ export interface Reference {
   enabledOperations?: MemberOperation[];
   // How a deposit may have been paid: bank transfer or Juice.
   depositMethods?: DepositMethod[];
+  // How a member may ask to receive a withdrawal: bank transfer or cheque.
+  withdrawalMethods?: PayoutMethod[];
+}
+
+export interface PayoutMethod {
+  code: 'bank_transfer' | 'cheque';
+  name: string;
 }
 
 export type MemberOperation = 'deposit' | 'withdrawal' | 'transfer';
@@ -92,8 +99,9 @@ export interface BankAccountOption {
 }
 
 // What the deposit form offers a signed-in member (/me/deposit-options):
-// bank transfer or Juice, and the Society's bank accounts with the number
-// to pay to — never on the public reference.
+// bank transfer or Juice, and the one Society bank account to pay into,
+// with its number — never on the public reference. A list of at most one,
+// empty until the Society marks the account.
 export interface DepositOptions {
   methods: DepositMethod[];
   bankAccounts: SocietyBankAccount[];
@@ -156,10 +164,14 @@ export interface DepositInput {
   reason?: string;
 }
 
-// How it is paid out is the Treasurer's to decide at disbursement.
+// How the member asks to receive it; for a bank transfer, their own bank
+// and account number, which the Treasurer pays into.
 export interface WithdrawalInput {
   accountId: string;
   amount: string;
+  method: PayoutMethod['code'];
+  payToBank?: string;
+  payToAccountNumber?: string;
   reason?: string;
 }
 

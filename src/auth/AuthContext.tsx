@@ -29,7 +29,7 @@ import React, {
 import { AppState, type AppStateStatus } from 'react-native';
 import { api, ApiError, type Session } from '../api';
 import { forgetPushToken, registeredPushToken } from '../push/PushRegistration';
-import { attemptsLeft, MAX_PIN_ATTEMPTS, type PinRecord } from './pin';
+import { attemptsLeft, MAX_PIN_ATTEMPTS, needsNewPin, PIN_LENGTH, pinLengthOf, type PinRecord } from './pin';
 import { loadPinRecord, newPinRecord, pinMatches, savePinRecord } from './pin-store';
 import { loadSession, saveSession } from './session-store';
 
@@ -43,8 +43,14 @@ export type UnlockResult = { ok: true } | { ok: false; attemptsLeft: number };
 interface AuthState {
   ready: boolean;
   session: Session | null;
-  // A PIN has been set on this device for this session.
+  // A current PIN has been set on this device for this session. False
+  // too for a six-digit PIN from before PINs were four digits: once it has
+  // unlocked the app, a new one is chosen.
   pinSet: boolean;
+  // The stored PIN is an old six-digit one, to be replaced after unlocking.
+  pinOutdated: boolean;
+  // How many digits the unlock screen asks for: the stored PIN's.
+  pinLength: number;
   // The PIN is due before anything else is shown.
   locked: boolean;
   signIn: (session: Session) => Promise<void>;
@@ -232,7 +238,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     () => ({
       ready,
       session,
-      pinSet: !!pin,
+      pinSet: !!pin && !needsNewPin(pin),
+      pinOutdated: !!pin && needsNewPin(pin),
+      pinLength: pin ? pinLengthOf(pin) : PIN_LENGTH,
       locked: locked && !!session && !!pin,
       signIn,
       signOut,

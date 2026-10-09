@@ -311,6 +311,15 @@ const BANK_ACCOUNTS = [
   { id: 'bank-mcb', name: 'MCB current account', bankName: 'MCB', accountNumber: '000444123456' },
   { id: 'bank-sbm', name: 'SBM savings account', bankName: 'SBM', accountNumber: '61030100012345' },
 ];
+// The one a member is shown to pay into (Configuration -> Bank accounts on
+// the backend): never the list.
+const PAY_INTO = BANK_ACCOUNTS[0];
+
+// How a member may ask to receive a withdrawal.
+const PAYOUT_METHODS = [
+  { code: 'bank_transfer', name: 'Bank transfer' },
+  { code: 'cheque', name: 'Cheque' },
+];
 
 // Bank transfer or Juice, nothing else from the app (officer direction).
 const DEPOSIT_METHODS = [
@@ -644,7 +653,8 @@ export function createMockTransport(): Transport {
       handle: () => ({
         membershipTypes: MEMBERSHIP_TYPES.filter(t => t.isActive),
         // Named only: the numbers are for a signed-in member.
-        bankAccounts: BANK_ACCOUNTS.map(({ id, name, bankName }) => ({ id, name, bankName })),
+        bankAccounts: [{ id: PAY_INTO.id, name: PAY_INTO.name, bankName: PAY_INTO.bankName }],
+        withdrawalMethods: PAYOUT_METHODS,
         // All three on, so the app can be tried end to end. The real
         // backend has none on until the Society switches them on.
         enabledOperations: ['deposit', 'withdrawal', 'transfer'],
@@ -659,7 +669,7 @@ export function createMockTransport(): Transport {
         const person = personForSubject(requireSession(options));
         // An applicant holds no account to pay into.
         if (person.profile.kind !== 'member') throw fail('forbidden', 'Only a member can pay in from the app.');
-        return { methods: DEPOSIT_METHODS, bankAccounts: BANK_ACCOUNTS };
+        return { methods: DEPOSIT_METHODS, bankAccounts: [PAY_INTO] };
       },
     },
     {
@@ -699,8 +709,8 @@ export function createMockTransport(): Transport {
             if (method?.requiresReference && !String(body?.methodReference ?? '').trim()) {
               details.methodReference = ['Enter the reference of your transaction.'];
             }
-            if (method?.touchesBank && !BANK_ACCOUNTS.some(b => b.id === body?.bankAccountId)) {
-              details.bankAccountId = ["Choose the Society's bank account number you paid into."];
+            if (body?.bankAccountId && body.bankAccountId !== PAY_INTO.id) {
+              details.bankAccountId = [`Pay into ${PAY_INTO.accountNumber}.`];
             }
             if (Object.keys(details).length > 0) throw fail('validation_failed', 'Check the details.', details);
             return file(person, {
@@ -725,6 +735,16 @@ export function createMockTransport(): Transport {
           withdrawal: once(options, () => {
             const { account, forMinor } = accountInReach(person, String(body?.accountId ?? ''));
             const amount = checkedAmount(body?.amount, available(person, account));
+            const payout = PAYOUT_METHODS.find(m => m.code === body?.method);
+            const details: Record<string, string[]> = {};
+            if (!payout) details.method = ['Choose Bank transfer or Cheque.'];
+            if (payout?.code === 'bank_transfer') {
+              if (!String(body?.payToBank ?? '').trim()) details.payToBank = ['Enter the name of your bank.'];
+              if (!/^[A-Za-z0-9 -]{4,40}$/.test(String(body?.payToAccountNumber ?? '').trim())) {
+                details.payToAccountNumber = ['Enter your account number: letters, digits, spaces and dashes.'];
+              }
+            }
+            if (Object.keys(details).length > 0) throw fail('validation_failed', 'Check the details.', details);
             return file(person, {
               kind: 'withdrawal',
               account,

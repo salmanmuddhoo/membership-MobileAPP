@@ -283,13 +283,28 @@ test('money from the app waits for officers: every request is Pending approval',
     reference.depositMethods!.map(m => m.code),
     ['bank_transfer', 'juice']
   );
+  // One account to pay into, never the list; named only in public.
+  assert.equal(reference.bankAccounts!.length, 1);
   assert.ok(reference.bankAccounts!.every(b => !('accountNumber' in b)));
+  assert.deepEqual(
+    reference.withdrawalMethods!.map(m => m.code),
+    ['bank_transfer', 'cheque']
+  );
   const options = await api.depositOptions(token);
   assert.deepEqual(
     options.methods.map(m => m.name),
     ['Bank transfer', 'Juice']
   );
-  assert.ok(options.bankAccounts.every(b => /^\d+$/.test(b.accountNumber)));
+  assert.equal(options.bankAccounts.length, 1);
+  assert.match(options.bankAccounts[0].accountNumber, /^\d+$/);
+  await assert.rejects(
+    api.deposit(token, { accountId: 'acc-msa', amount: '10', method: 'juice', methodReference: 'J-1', bankAccountId: 'bank-sbm' }, 'k-00'),
+    (e: unknown) => {
+      assert.ok(e instanceof ApiError && e.code === 'validation_failed');
+      assert.ok(e.details.bankAccountId);
+      return true;
+    }
+  );
   await assert.rejects(
     api.deposit(token, { accountId: 'acc-msa', amount: '10', method: 'cheque', methodReference: 'C-1', bankAccountId: 'bank-mcb' }, 'k-0'),
     (e: unknown) => {
@@ -302,12 +317,14 @@ test('money from the app waits for officers: every request is Pending approval',
   const before = await api.requests(token);
   assert.ok(before.some(r => r.state === 'declined' && r.reason));
 
-  // A deposit names how it was paid, the Society's account and a reference.
+  // A deposit names how it was paid and its reference.
   await assert.rejects(
     api.deposit(token, { accountId: 'acc-msa', amount: '750', method: 'bank_transfer' }, 'k-1'),
     (e: unknown) => {
       assert.ok(e instanceof ApiError && e.code === 'validation_failed');
-      assert.ok(e.details.methodReference && e.details.bankAccountId);
+      // The reference is the member's to give; the account is the one shown.
+      assert.ok(e.details.methodReference);
+      assert.equal(e.details.bankAccountId, undefined);
       return true;
     }
   );
@@ -317,11 +334,24 @@ test('money from the app waits for officers: every request is Pending approval',
   await api.deposit(token, deposit, 'k-2');
 
   // A withdrawal draws on what is available, less what is on its way out.
-  await api.withdraw(token, { accountId: 'acc-msa', amount: '4000' }, 'k-3');
+  // How the member is paid: a bank transfer names their own account.
+  await assert.rejects(
+    api.withdraw(token, { accountId: 'acc-msa', amount: '10', method: 'bank_transfer' }, 'k-30'),
+    (e: unknown) => {
+      assert.ok(e instanceof ApiError && e.code === 'validation_failed');
+      assert.ok(e.details.payToBank && e.details.payToAccountNumber);
+      return true;
+    }
+  );
+  await api.withdraw(
+    token,
+    { accountId: 'acc-msa', amount: '4000', method: 'bank_transfer', payToBank: 'MCB', payToAccountNumber: '000999888777' },
+    'k-3'
+  );
   const balance = await api.accountBalance(token, 'acc-msa');
   assert.equal(balance.balance, '5000.00');
   assert.equal(balance.available, '1000.00');
-  await assert.rejects(api.withdraw(token, { accountId: 'acc-msa', amount: '1000.01' }, 'k-4'), (e: unknown) => {
+  await assert.rejects(api.withdraw(token, { accountId: 'acc-msa', amount: '1000.01', method: 'cheque' }, 'k-4'), (e: unknown) => {
     assert.ok(e instanceof ApiError && e.code === 'validation_failed');
     return true;
   });
@@ -342,7 +372,7 @@ test('money from the app waits for officers: every request is Pending approval',
   assert.equal(made[2].stage, 'Being verified by the accounts department');
 
   // Somebody else's account is no account at all.
-  await assert.rejects(api.withdraw(token, { accountId: 'acc-nobody', amount: '1' }, 'k-7'), (e: unknown) => {
+  await assert.rejects(api.withdraw(token, { accountId: 'acc-nobody', amount: '1', method: 'cheque' }, 'k-7'), (e: unknown) => {
     assert.ok(e instanceof ApiError && e.code === 'not_found');
     return true;
   });
@@ -359,7 +389,7 @@ test("a guardian asks for money on a minor's account, and sees it named in the l
     { accountId: minorMsa, amount: '200', method: 'juice', methodReference: 'J-77', bankAccountId: 'bank-mcb' },
     'g-1'
   );
-  await api.withdraw(token, { accountId: minorMsa, amount: '100' }, 'g-2');
+  await api.withdraw(token, { accountId: minorMsa, amount: '100', method: 'cheque' }, 'g-2');
   assert.equal((await api.accountBalance(token, minorMsa)).available, '650.00');
   await api.transfer(token, { sourceAccountId: minorMsa, destinationAccountId: 'acc-msa', amount: '50' }, 'g-3');
 

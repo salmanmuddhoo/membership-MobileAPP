@@ -1,12 +1,16 @@
-// Telling the Society about money already paid in, by bank transfer or
-// Juice — nothing else from the app — into one of the member's accounts or
-// a minor's in their care. Nothing reaches the balance until the accounts
-// department has checked it arrived (migration 0120 on the backend).
+// Telling the Society about money paid in, by bank transfer or Juice —
+// nothing else from the app — into one of the member's accounts or a
+// minor's in their care. The member is shown one Society bank account to
+// send it to, the one the Society marked, never the list. Nothing reaches
+// the balance until the accounts department has checked it arrived
+// (migrations 0120 and 0121 on the backend).
 import React, { useState } from 'react';
+import { StyleSheet, Text } from 'react-native';
 import { ApiError } from '@/api';
 import { useDeposit, useDepositOptions, useReference } from '@/hooks/queries';
 import { amountProblem, normaliseAmount } from '@/lib/transact';
-import { Banner, Body, Button, Empty, Loading, OptionField, Screen, TextField } from '@/ui';
+import { Banner, Body, Button, Card, Empty, Loading, OptionField, Screen, TextField } from '@/ui';
+import { colors, spacing, type } from '@/ui/theme';
 import {
   accountOption,
   NO_PROBLEMS,
@@ -28,7 +32,6 @@ export default function Deposit() {
   const [accountId, setAccountId] = useState<string | null>(null);
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState<string | null>(null);
-  const [chosenBank, setChosenBank] = useState<string | null>(null);
   const [methodReference, setMethodReference] = useState('');
   const [note, setNote] = useState('');
   const [problems, setProblems] = useState<Problems>(NO_PROBLEMS);
@@ -47,9 +50,15 @@ export default function Deposit() {
 
   const methods = options.data?.methods ?? [];
   const chosen = methods.find(m => m.code === method) ?? null;
-  const banks = options.data?.bankAccounts ?? [];
-  // With one account to pay into there is nothing to choose.
-  const bankAccountId = chosenBank ?? (banks.length === 1 ? banks[0].id : null);
+  // The one account members pay into; the backend lists no other.
+  const payInto = options.data?.bankAccounts?.[0] ?? null;
+  if (!payInto) {
+    return (
+      <Empty title="Not available yet">
+        The Society has not yet set the bank account to pay into from the app. Visit a branch.
+      </Empty>
+    );
+  }
 
   async function send() {
     const fields: Record<string, string> = {};
@@ -57,7 +66,6 @@ export default function Deposit() {
     const amountError = amountProblem(amount);
     if (amountError) fields.amount = amountError;
     if (!chosen) fields.method = 'Choose how you paid.';
-    if (chosen?.touchesBank && !bankAccountId) fields.bankAccountId = "Choose the Society's bank account number you paid into.";
     if (chosen?.requiresReference && !methodReference.trim()) fields.methodReference = 'Enter the reference of your transaction.';
     if (Object.keys(fields).length > 0) {
       setProblems({ message: 'Some details need attention.', fields });
@@ -71,7 +79,7 @@ export default function Deposit() {
           amount: normaliseAmount(amount),
           method: chosen!.code,
           methodReference: methodReference.trim() || undefined,
-          bankAccountId: chosen!.touchesBank ? bankAccountId! : undefined,
+          bankAccountId: payInto!.id,
           reason: note.trim() || undefined,
         },
         idempotencyKey: key,
@@ -85,6 +93,14 @@ export default function Deposit() {
   return (
     <Screen footer={<Button title="Send for approval" onPress={send} loading={deposit.isPending} />}>
       {problems.message ? <Banner tone="danger">{problems.message}</Banner> : null}
+      <Text style={type.label}>Bank account Number of the society</Text>
+      <Card style={styles.payInto}>
+        <Text style={styles.number} selectable accessibilityLabel={`Account number ${payInto.accountNumber.split('').join(' ')}`}>
+          {payInto.accountNumber}
+        </Text>
+        <Text style={type.small}>{payInto.bankName}</Text>
+      </Card>
+      {problems.fields.bankAccountId ? <Text style={styles.error}>{problems.fields.bankAccountId}</Text> : null}
       <OptionField
         label="Into which account"
         required
@@ -110,16 +126,6 @@ export default function Deposit() {
         onChange={setMethod}
         error={problems.fields.method}
       />
-      {chosen?.touchesBank ? (
-        <OptionField
-          label="Bank account Number of the society"
-          required
-          value={bankAccountId}
-          options={banks.map(b => ({ value: b.id, label: b.accountNumber, detail: b.bankName }))}
-          onChange={setChosenBank}
-          error={problems.fields.bankAccountId}
-        />
-      ) : null}
       {chosen?.requiresReference ? (
         <TextField
           label="Reference"
@@ -143,3 +149,9 @@ export default function Deposit() {
     </Screen>
   );
 }
+
+const styles = StyleSheet.create({
+  payInto: { gap: spacing.xs, marginTop: -spacing.sm },
+  number: { fontSize: 22, fontWeight: '800', letterSpacing: 1.5, color: colors.primary },
+  error: { color: colors.danger, fontSize: 13 },
+});

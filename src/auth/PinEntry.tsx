@@ -1,6 +1,7 @@
-// Six dots and a keypad: the one control both the set-up and the unlock
-// are built from. Controlled: the caller holds the digits, so it can empty
-// them after a wrong PIN, and sees the sixth digit land.
+// A dot per digit and a keypad: the one control both the set-up and the
+// unlock are built from. Controlled: the caller holds the digits, so it can
+// empty them after a wrong PIN, and sees the last digit land. Four digits,
+// or the stored PIN's own length when an old six-digit one unlocks.
 import * as Haptics from 'expo-haptics';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React from 'react';
@@ -14,22 +15,24 @@ export function PinEntry({
   digits,
   onChange,
   disabled,
+  length = PIN_LENGTH,
 }: {
   digits: string;
   onChange: (digits: string) => void;
   disabled?: boolean;
+  length?: number;
 }) {
   function press(key: string) {
     if (disabled) return;
     Haptics.selectionAsync().catch(() => undefined);
     if (key === 'back') onChange(digits.slice(0, -1));
-    else if (digits.length < PIN_LENGTH) onChange(digits + key);
+    else if (digits.length < length) onChange(digits + key);
   }
 
   return (
     <View style={styles.wrap}>
-      <View style={styles.dots} accessibilityLabel={`${digits.length} of ${PIN_LENGTH} digits entered`}>
-        {Array.from({ length: PIN_LENGTH }, (_, i) => (
+      <View style={styles.dots} accessibilityLabel={`${digits.length} of ${length} digits entered`}>
+        {Array.from({ length }, (_, i) => (
           <View key={i} style={[styles.dot, i < digits.length && styles.dotFilled]} />
         ))}
       </View>
