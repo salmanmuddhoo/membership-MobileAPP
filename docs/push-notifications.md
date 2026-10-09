@@ -25,6 +25,10 @@ messages; the app only decides which screen a tap opens.
    opens Home. A notification that
    arrives while the app is open refreshes the data it is about, so the
    balance is right by the time the member looks.
+4. A minor with no phone of their own is told through their guardian's:
+   the backend sends the push about the minor's money to the guardian's
+   phones, so a guardian who asked for a deposit or withdrawal for the
+   minor hears the outcome.
 
 `src/push/PushRegistration.tsx` does all of this; it is mounted only with
 a session.

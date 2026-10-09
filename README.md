@@ -168,7 +168,7 @@ Welcome → Link my membership (NIC + AB Number) → Code → Choose a PIN →
 **Home** (total balance, the Society's promotion cards, its partners) ·
 **Accounts** (a balance per account, own and minors' apart, hide / show) →
 account → transactions · **Cards** (the membership card: name, Member No.,
-raised gold lettering; the partner outlets where it earns a discount, by category) · **Transact** (deposit, withdrawal, transfer, each validated by the Society's officers, and **My requests** showing where each stands) · **My
+plain bold lettering; the partner outlets where it earns a discount, by category) · **Transact** (deposit by bank transfer or Juice, withdrawal, transfer, on the member's accounts or a minor's in their care, each validated by the Society's officers, and **My requests** showing where each stands) · **My
 details** (the member's own details and, for a minor, the guardian's;
 employment and nominees stay a branch matter) → Complete my details (only
 what is missing; what is on record changes at a branch) → sent for

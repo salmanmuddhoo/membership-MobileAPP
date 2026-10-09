@@ -79,7 +79,7 @@ export interface Reference {
   // Which transactions the app may start (Configuration -> Member app on
   // the web application). Empty until the Society switches them on.
   enabledOperations?: MemberOperation[];
-  // How a deposit may have been paid: never cash.
+  // How a deposit may have been paid: bank transfer or Juice.
   depositMethods?: DepositMethod[];
 }
 
@@ -89,6 +89,21 @@ export interface BankAccountOption {
   id: string;
   name: string;
   bankName: string;
+}
+
+// What the deposit form offers a signed-in member (/me/deposit-options):
+// bank transfer or Juice, and the Society's bank accounts with the number
+// to pay to — never on the public reference.
+export interface DepositOptions {
+  methods: DepositMethod[];
+  bankAccounts: SocietyBankAccount[];
+}
+
+export interface SocietyBankAccount {
+  id: string;
+  name: string;
+  bankName: string;
+  accountNumber: string;
 }
 
 export interface DepositMethod {
@@ -122,6 +137,9 @@ export interface MemberRequest {
   counterpartAccountNo: string | null;
   counterpartAccountTypeName: string | null;
   methodName: string | null;
+  // The minor it was asked for, when it is on the account of a minor in
+  // the member's care; null on their own.
+  forMinor?: string | null;
   note: string;
   // Why it was not approved, as the officer wrote it.
   reason: string | null;
@@ -295,8 +313,9 @@ export interface AccountSummary {
 }
 
 // A minor the signed-in member is guardian of, with the minor's accounts. The
-// member sees these read-only alongside their own (see member/dependents on
-// the backend).
+// member sees these alongside their own, and may ask for a deposit, a
+// withdrawal or a transfer on them as on their own (see member/dependents
+// on the backend).
 export interface Dependent {
   id: string;
   kind: 'member' | 'customer';

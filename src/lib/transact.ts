@@ -1,8 +1,24 @@
 // The rules the money forms check before anything is sent, and the words
 // a request is shown with. Pure, so they are tested on their own
 // (tests/transact.test.ts); the backend checks the same again.
-import type { MemberOperation, MemberRequest, RequestState } from '../api/types';
+import type { AccountSummary, Dependent, MemberOperation, MemberRequest, RequestState } from '../api/types';
 import { formatMoney } from './format';
+
+// An account a request may be made on: one of the member's own (holderName
+// null), or one held by a minor in their care, with the minor's name.
+export interface MoneyAccount extends AccountSummary {
+  holderName: string | null;
+}
+
+// The open accounts money can move through: the member's own first, then
+// each minor's in turn.
+export function moneyAccounts(own: AccountSummary[] | undefined, dependents: Dependent[] | undefined): MoneyAccount[] {
+  const open = (a: AccountSummary) => a.status === 'active';
+  return [
+    ...(own ?? []).filter(open).map(a => ({ ...a, holderName: null })),
+    ...(dependents ?? []).flatMap(d => d.accounts.filter(open).map(a => ({ ...a, holderName: d.name }))),
+  ];
+}
 
 // Rupees, at most two decimals, more than nothing.
 const AMOUNT = /^\d{1,12}(\.\d{1,2})?$/;

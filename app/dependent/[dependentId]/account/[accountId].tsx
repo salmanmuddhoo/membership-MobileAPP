@@ -14,7 +14,8 @@ import { Banner, Body, Card, Empty, Heading, Loading } from '@/ui';
 import { Balance, BalanceToggle } from '@/ui/Balance';
 import { colors, spacing, type } from '@/ui/theme';
 
-// One guarded minor's account: balance and the entries behind it, read-only.
+// One guarded minor's account: balance and the entries behind it. Money is
+// moved for the minor from Transact, as for the member's own accounts.
 export default function DependentAccount() {
   const { dependentId, accountId } = useLocalSearchParams<{
     dependentId: string;
@@ -64,10 +65,7 @@ export default function DependentAccount() {
           <View style={styles.txRow}>
             <View style={{ flex: 1 }}>
               <Text style={type.body}>{t.description}</Text>
-              <Text style={type.small}>
-                {formatDate(t.occurredAt)}
-                {t.receiptNo ? ` · Receipt ${t.receiptNo}` : ''}
-              </Text>
+              <Text style={type.small}>{formatDate(t.occurredAt)}</Text>
             </View>
             <Text
               style={[styles.amount, t.direction === 'debit' && styles.debit]}

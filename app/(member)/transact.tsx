@@ -5,7 +5,10 @@
 // by the accounts department; a withdrawal by the Secretary and the
 // President, then paid out by the Treasurer; a transfer by the Secretary
 // and the President. Until they decide, the request shows below as
-// "Pending approval", with who has it.
+// "Pending approval", with who has it. A guardian asks for the minors in
+// their care the same way, and those requests are listed here too, named.
+// The transaction's own reference is the office's, not shown here (officer
+// direction).
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import React from 'react';
@@ -58,10 +61,6 @@ export default function Transact() {
         />
       }
     >
-      <Body muted>
-        {"Every request is checked by the Society's officers before any money moves. Until then it shows below as Pending approval."}
-      </Body>
-
       <View style={styles.actions}>
         {ACTIONS.map(a => {
           const on = enabled.includes(a.op);
@@ -115,7 +114,7 @@ function RequestCard({ request: r }: { request: MemberRequest }) {
             {requestTitle(r)}
           </Text>
           <Text style={type.small}>
-            {formatDate(r.createdAt)} · {r.reference}
+            {r.forMinor ? `${formatDate(r.createdAt)} · For ${r.forMinor}` : formatDate(r.createdAt)}
           </Text>
         </View>
         <Text style={styles.amount}>{formatMoney(r.amount)}</Text>

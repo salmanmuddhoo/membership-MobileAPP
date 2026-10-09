@@ -1,10 +1,7 @@
 // The membership card: the physical card every member carries, on the
-// phone — name, Member No. and the year they joined, in raised gold
-// lettering (officer direction) — and beneath it the partner outlets where
-// it earns a discount, by category. No barcode: the card is shown, not
-// scanned.
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
+// phone — name, Member No. and the year they joined, in plain bold
+// lettering (officer direction: no raised or 3D effect, no barcode) — and
+// beneath it the partner outlets where it earns a discount, by category.
 import React, { useState } from 'react';
 import { Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { ApiError, type Outlet } from '@/api';
@@ -12,15 +9,11 @@ import { useAuth } from '@/auth/AuthContext';
 import { useMe, useOutlets } from '@/hooks/queries';
 import { categoriesOf, categoryLabel, discountLabel } from '@/lib/outlets';
 import { Banner, Body, Card, Empty, Heading, Loading } from '@/ui';
-import { GoldText } from '@/ui/GoldText';
 import { Logo } from '@/ui/Logo';
 import { colors, radius, spacing, type } from '@/ui/theme';
 
 // ISO/IEC 7810 ID-1: the proportions of a bank card.
 const CARD_RATIO = 85.6 / 53.98;
-
-// The small print on the card, in the lettering's own gold, muted.
-const GOLD_SOFT = 'rgba(240, 210, 130, 0.8)';
 
 export default function MembershipCard() {
   const { session } = useAuth();
@@ -46,55 +39,33 @@ export default function MembershipCard() {
 
   return (
     <ScrollView contentContainerStyle={styles.content}>
-      <LinearGradient
-        colors={['#146A57', '#0B443A', '#062A24']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.card}
-        accessibilityLabel={`Al Barakah membership card, ${name}, member number ${profile.memberNo}`}
-      >
-        {/* The light across the face: a band of it, as on a laminated card. */}
-        <View style={styles.sheenBand} />
-        <View style={styles.sheenSpot} />
-
+      <View style={styles.card} accessibilityLabel={`Al Barakah membership card, ${name}, member number ${profile.memberNo}`}>
+        <View style={styles.sheen} />
+        <View style={styles.sheenSmall} />
         <View style={styles.cardHead}>
+          <Logo size={44} />
           <View style={{ flex: 1 }}>
-            <GoldText size={20} letterSpacing={2.5}>
-              AL BARAKAH
-            </GoldText>
+            <Text style={styles.brand}>Al Barakah</Text>
             <Text style={styles.brandSub}>Multi-purpose Co-operative Society Ltd</Text>
           </View>
-          <Logo size={40} />
         </View>
-
-        <View style={styles.cardChipRow}>
-          <Chip />
-          <MaterialCommunityIcons name="contactless-payment" size={26} color={GOLD_SOFT} />
-        </View>
-
         <View style={{ flex: 1 }} />
-
-        <GoldText size={nameSize(profile.memberNo, 26)} letterSpacing={4} style={styles.number}>
-          {profile.memberNo}
-        </GoldText>
-
+        <Text style={styles.name} numberOfLines={1} adjustsFontSizeToFit>
+          {name}
+        </Text>
         <View style={styles.cardFoot}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.fieldLabel}>MEMBER</Text>
-            <GoldText size={nameSize(name, 18)} letterSpacing={1.5}>
-              {name}
-            </GoldText>
+          <View>
+            <Text style={styles.fieldLabel}>MEMBER NO.</Text>
+            <Text style={styles.fieldValue}>{profile.memberNo}</Text>
           </View>
           {since ? (
-            <View style={styles.since}>
-              <Text style={styles.fieldLabel}>SINCE</Text>
-              <GoldText size={16} letterSpacing={1}>
-                {String(since)}
-              </GoldText>
+            <View style={{ alignItems: 'flex-end' }}>
+              <Text style={styles.fieldLabel}>MEMBER SINCE</Text>
+              <Text style={styles.fieldValue}>{since}</Text>
             </View>
           ) : null}
         </View>
-      </LinearGradient>
+      </View>
 
       <Heading>Where to use your card</Heading>
       {outlets.isLoading ? <Loading /> : null}
@@ -107,9 +78,9 @@ export default function MembershipCard() {
 
       {categories.length > 1 ? (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chips} contentContainerStyle={styles.chipRow}>
-          <FilterChip label="All" selected={category === null} onPress={() => setCategory(null)} />
+          <Chip label="All" selected={category === null} onPress={() => setCategory(null)} />
           {categories.map(c => (
-            <FilterChip key={c} label={categoryLabel(c)} selected={category === c} onPress={() => setCategory(c)} />
+            <Chip key={c} label={categoryLabel(c)} selected={category === c} onPress={() => setCategory(c)} />
           ))}
         </ScrollView>
       ) : null}
@@ -121,27 +92,7 @@ export default function MembershipCard() {
   );
 }
 
-// Raised lettering cannot shrink to fit (its layers would each shrink
-// differently), so the size is chosen from the length instead.
-function nameSize(text: string, full: number): number {
-  if (text.length <= 16) return full;
-  if (text.length <= 22) return full - 3;
-  return full - 6;
-}
-
-// The contact plate, in gold, with the lines a real one has.
-function Chip() {
-  return (
-    <LinearGradient colors={['#F1D98A', '#C8A24C', '#A47F2C']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.cardChip}>
-      <View style={styles.chipLineH} />
-      <View style={[styles.chipLineH, { top: '66%' }]} />
-      <View style={styles.chipLineV} />
-      <View style={[styles.chipLineV, { left: '66%' }]} />
-    </LinearGradient>
-  );
-}
-
-function FilterChip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
+function Chip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
   return (
     <Pressable
       onPress={onPress}
@@ -196,52 +147,40 @@ const styles = StyleSheet.create({
     aspectRatio: CARD_RATIO,
     width: '100%',
     borderRadius: radius.lg,
+    backgroundColor: colors.primaryDark,
     padding: spacing.lg,
     overflow: 'hidden',
     shadowColor: '#000',
-    shadowOpacity: 0.3,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 10,
-    // A gold trim, as on the reference card.
-    borderWidth: 1,
-    borderColor: 'rgba(214, 172, 74, 0.55)',
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
   },
-  sheenBand: {
+  sheen: {
     position: 'absolute',
-    left: '30%',
-    top: -200,
-    width: 140,
-    height: 600,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    transform: [{ rotate: '28deg' }],
+    right: -80,
+    top: -120,
+    width: 320,
+    height: 320,
+    borderRadius: 160,
+    backgroundColor: 'rgba(255,255,255,0.07)',
   },
-  sheenSpot: {
+  sheenSmall: {
     position: 'absolute',
-    right: -90,
-    bottom: -150,
-    width: 260,
-    height: 260,
-    borderRadius: 130,
-    backgroundColor: 'rgba(200,162,76,0.14)',
+    left: -60,
+    bottom: -140,
+    width: 240,
+    height: 240,
+    borderRadius: 120,
+    backgroundColor: 'rgba(200,162,76,0.18)',
   },
   cardHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  brandSub: { color: GOLD_SOFT, fontSize: 10, marginTop: 4 },
-  cardChipRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginTop: spacing.md },
-  cardChip: {
-    width: 44,
-    height: 33,
-    borderRadius: 7,
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.25)',
-    overflow: 'hidden',
-  },
-  chipLineH: { position: 'absolute', left: 0, right: 0, top: '33%', height: 1, backgroundColor: 'rgba(0,0,0,0.3)' },
-  chipLineV: { position: 'absolute', top: 0, bottom: 0, left: '33%', width: 1, backgroundColor: 'rgba(0,0,0,0.3)' },
-  number: { marginBottom: spacing.md },
-  cardFoot: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.md },
-  since: { alignItems: 'flex-end' },
-  fieldLabel: { color: GOLD_SOFT, fontSize: 8, letterSpacing: 1.5, marginBottom: 4 },
+  brand: { color: '#fff', fontSize: 18, fontWeight: '800' },
+  brandSub: { color: 'rgba(255,255,255,0.75)', fontSize: 11 },
+  name: { color: '#fff', fontSize: 18, fontWeight: '800', letterSpacing: 2, marginBottom: spacing.md },
+  cardFoot: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
+  fieldLabel: { color: 'rgba(255,255,255,0.65)', fontSize: 9, fontWeight: '700', letterSpacing: 1.5 },
+  fieldValue: { color: colors.accent, fontSize: 18, fontWeight: '800', letterSpacing: 2, marginTop: 2 },
   chips: { marginHorizontal: -spacing.lg },
   chipRow: { paddingHorizontal: spacing.lg, gap: spacing.sm },
   chip: {

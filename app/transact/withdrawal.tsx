@@ -1,24 +1,25 @@
-// Asking for money out of an account. It goes to the Secretary, then the
-// President; once approved the Treasurer pays it out and decides how
-// (migration 0120 on the backend). Nothing leaves the account before then.
+// Asking for money out of an account — the member's own or a minor's in
+// their care. It goes to the Secretary, then the President; once approved
+// the Treasurer pays it out and decides how (migration 0120 on the
+// backend). Nothing leaves the account before then.
 import React, { useState } from 'react';
-import { useAccountBalance, useAccounts, useReference, useWithdrawal } from '@/hooks/queries';
+import { useAccountBalance, useReference, useWithdrawal } from '@/hooks/queries';
 import { formatMoney } from '@/lib/format';
 import { amountProblem, normaliseAmount } from '@/lib/transact';
 import { Banner, Button, Empty, Loading, OptionField, Screen, TextField } from '@/ui';
 import {
   accountOption,
-  activeAccounts,
   NO_PROBLEMS,
   problemsFrom,
   useIdempotencyKey,
+  useMoneyAccounts,
   useSent,
   type Problems,
 } from '@/transact/shared';
 
 export default function Withdrawal() {
   const reference = useReference();
-  const accounts = useAccounts();
+  const accounts = useMoneyAccounts();
   const withdrawal = useWithdrawal();
   const key = useIdempotencyKey();
   const sent = useSent();
@@ -34,7 +35,7 @@ export default function Withdrawal() {
     return <Empty title="Not available yet">Withdrawals from the app have not been switched on. Visit a branch.</Empty>;
   }
 
-  const options = activeAccounts(accounts.data).filter(a => Number(a.balance ?? '0') > 0);
+  const options = accounts.list.filter(a => Number(a.balance ?? '0') > 0);
   const available = balance.data?.available ?? null;
 
   async function send() {
@@ -52,7 +53,7 @@ export default function Withdrawal() {
         input: { accountId: accountId!, amount: normaliseAmount(amount), reason: note.trim() || undefined },
         idempotencyKey: key,
       });
-      await sent('withdrawal', 'the Secretary and the President approve it, then the Treasurer pays it out.');
+      await sent('withdrawal');
     } catch (e) {
       setProblems(problemsFrom(e));
     }
@@ -64,9 +65,6 @@ export default function Withdrawal() {
 
   return (
     <Screen footer={<Button title="Send for approval" onPress={send} loading={withdrawal.isPending} />}>
-      <Banner tone="info" title="Approved before it is paid">
-        Your request goes to the Secretary and the President. Once approved, the Treasurer pays it out and the office tells you how.
-      </Banner>
       {problems.message ? <Banner tone="danger">{problems.message}</Banner> : null}
       <OptionField
         label="From which account"

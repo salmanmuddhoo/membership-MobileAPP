@@ -1,24 +1,24 @@
-// Moving money between the member's own accounts. Approved by the
-// Secretary and the President before it moves (migration 0120 on the
-// backend).
+// Moving money between the member's accounts and those of the minors in
+// their care. Approved by the Secretary and the President before it moves
+// (migration 0120 on the backend).
 import React, { useState } from 'react';
-import { useAccountBalance, useAccounts, useReference, useTransfer } from '@/hooks/queries';
+import { useAccountBalance, useReference, useTransfer } from '@/hooks/queries';
 import { formatMoney } from '@/lib/format';
 import { amountProblem, normaliseAmount } from '@/lib/transact';
 import { Banner, Button, Empty, Loading, OptionField, Screen, TextField } from '@/ui';
 import {
   accountOption,
-  activeAccounts,
   NO_PROBLEMS,
   problemsFrom,
   useIdempotencyKey,
+  useMoneyAccounts,
   useSent,
   type Problems,
 } from '@/transact/shared';
 
 export default function Transfer() {
   const reference = useReference();
-  const accounts = useAccounts();
+  const accounts = useMoneyAccounts();
   const transfer = useTransfer();
   const key = useIdempotencyKey();
   const sent = useSent();
@@ -35,7 +35,7 @@ export default function Transfer() {
     return <Empty title="Not available yet">Transfers from the app have not been switched on. Visit a branch.</Empty>;
   }
 
-  const open = activeAccounts(accounts.data);
+  const open = accounts.list;
   const sources = open.filter(a => Number(a.balance ?? '0') > 0);
   const destinations = open.filter(a => a.id !== sourceId);
   const available = balance.data?.available ?? null;
@@ -65,7 +65,7 @@ export default function Transfer() {
         },
         idempotencyKey: key,
       });
-      await sent('transfer', 'the Secretary and the President approve it, then it is recorded.');
+      await sent('transfer');
     } catch (e) {
       setProblems(problemsFrom(e));
     }
@@ -73,9 +73,6 @@ export default function Transfer() {
 
   return (
     <Screen footer={<Button title="Send for approval" onPress={send} loading={transfer.isPending} />}>
-      <Banner tone="info" title="Approved before it moves">
-        Your request goes to the Secretary and the President. The money moves once it is approved.
-      </Banner>
       {problems.message ? <Banner tone="danger">{problems.message}</Banner> : null}
       <OptionField
         label="From"

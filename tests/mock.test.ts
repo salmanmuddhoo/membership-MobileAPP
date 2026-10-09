@@ -277,7 +277,27 @@ test('money from the app waits for officers: every request is Pending approval',
   const { accessToken: token } = await linkMember(api);
   const reference = await api.reference();
   assert.deepEqual(reference.enabledOperations, ['deposit', 'withdrawal', 'transfer']);
-  assert.ok(reference.depositMethods!.every(m => m.code !== 'cash'));
+  // Bank transfer or Juice, nothing else; the public reference names the
+  // Society's accounts, and only a signed-in member gets their numbers.
+  assert.deepEqual(
+    reference.depositMethods!.map(m => m.code),
+    ['bank_transfer', 'juice']
+  );
+  assert.ok(reference.bankAccounts!.every(b => !('accountNumber' in b)));
+  const options = await api.depositOptions(token);
+  assert.deepEqual(
+    options.methods.map(m => m.name),
+    ['Bank transfer', 'Juice']
+  );
+  assert.ok(options.bankAccounts.every(b => /^\d+$/.test(b.accountNumber)));
+  await assert.rejects(
+    api.deposit(token, { accountId: 'acc-msa', amount: '10', method: 'cheque', methodReference: 'C-1', bankAccountId: 'bank-mcb' }, 'k-0'),
+    (e: unknown) => {
+      assert.ok(e instanceof ApiError && e.code === 'validation_failed');
+      assert.deepEqual(e.details.method, ['Choose Bank transfer or Juice.']);
+      return true;
+    }
+  );
 
   const before = await api.requests(token);
   assert.ok(before.some(r => r.state === 'declined' && r.reason));
@@ -326,4 +346,32 @@ test('money from the app waits for officers: every request is Pending approval',
     assert.ok(e instanceof ApiError && e.code === 'not_found');
     return true;
   });
+});
+
+test("a guardian asks for money on a minor's account, and sees it named in the list", async () => {
+  const api = memberApi(createMockTransport());
+  const { accessToken: token } = await linkMember(api);
+  const [minor] = await api.dependents(token);
+  const minorMsa = minor.accounts[0].id;
+
+  await api.deposit(
+    token,
+    { accountId: minorMsa, amount: '200', method: 'juice', methodReference: 'J-77', bankAccountId: 'bank-mcb' },
+    'g-1'
+  );
+  await api.withdraw(token, { accountId: minorMsa, amount: '100' }, 'g-2');
+  assert.equal((await api.accountBalance(token, minorMsa)).available, '650.00');
+  await api.transfer(token, { sourceAccountId: minorMsa, destinationAccountId: 'acc-msa', amount: '50' }, 'g-3');
+
+  const requests = await api.requests(token);
+  const forMinor = requests.filter(r => r.accountId === minorMsa);
+  assert.deepEqual(
+    forMinor.map(r => [r.kind, r.forMinor]),
+    [
+      ['transfer', minor.name],
+      ['withdrawal', minor.name],
+      ['deposit', minor.name],
+    ]
+  );
+  assert.ok(requests.filter(r => r.accountId !== minorMsa).every(r => !r.forMinor));
 });
