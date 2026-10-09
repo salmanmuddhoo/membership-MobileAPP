@@ -1,7 +1,9 @@
 // The lock, over everything. Not a route: wherever the person was, the
 // screen beneath is covered until the PIN is right, and a device whose
 // session has no PIN yet is asked to choose one — right after linking, or
-// on the first start after updating from a build without PINs.
+// on the first start after updating from a build without PINs. A phone
+// with a six-digit PIN from before PINs were four digits unlocks with it
+// once, then chooses a four-digit one: never a new PIN without the old.
 import React, { useEffect, useState } from 'react';
 import { BackHandler, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -15,7 +17,7 @@ import { isWeakPin, MAX_PIN_ATTEMPTS, PIN_LENGTH } from './pin';
 import { PinEntry } from './PinEntry';
 
 export function LockGate() {
-  const { ready, session, pinSet, locked } = useAuth();
+  const { ready, session, pinSet, pinOutdated, locked } = useAuth();
   const needsSetup = ready && !!session && !pinSet;
   const show = needsSetup || locked;
 
@@ -29,12 +31,12 @@ export function LockGate() {
   if (!show) return null;
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-      <SafeAreaView style={styles.safe}>{needsSetup ? <PinSetup /> : <Unlock />}</SafeAreaView>
+      <SafeAreaView style={styles.safe}>{locked ? <Unlock /> : <PinSetup replacing={pinOutdated} />}</SafeAreaView>
     </View>
   );
 }
 
-function PinSetup() {
+function PinSetup({ replacing }: { replacing: boolean }) {
   const { setPin } = useAuth();
   const [first, setFirst] = useState<string | null>(null);
   const [digits, setDigits] = useState('');
@@ -74,11 +76,15 @@ function PinSetup() {
     <View style={styles.body}>
       <AnimatedLogo size={88} />
       <FadeIn delay={200}>
-        <Text style={styles.title}>{first === null ? 'Choose a PIN' : 'Enter it once more'}</Text>
+        <Text style={styles.title}>
+          {first !== null ? 'Enter it once more' : replacing ? 'Choose a new PIN' : 'Choose a PIN'}
+        </Text>
         <Text style={styles.subtitle}>
-          {first === null
-            ? `${PIN_LENGTH} digits. You will use it to open the app from now on, instead of a code by SMS.`
-            : 'So we know you have it right.'}
+          {first !== null
+            ? 'So we know you have it right.'
+            : replacing
+              ? `PINs are now ${PIN_LENGTH} digits. Choose a new one to open the app from now on.`
+              : `${PIN_LENGTH} digits. You will use it to open the app from now on, instead of a code by SMS.`}
         </Text>
       </FadeIn>
       <View style={styles.message}>{message ? <Text style={styles.messageText}>{message}</Text> : null}</View>
@@ -89,14 +95,14 @@ function PinSetup() {
 
 function Unlock() {
   const router = useRouter();
-  const { session, unlock, signOut } = useAuth();
+  const { session, unlock, signOut, pinLength } = useAuth();
   const [digits, setDigits] = useState('');
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   function change(next: string) {
     setDigits(next);
-    if (next.length === PIN_LENGTH) complete(next);
+    if (next.length === pinLength) complete(next);
   }
 
   async function complete(pin: string) {
@@ -140,7 +146,7 @@ function Unlock() {
         <Text style={styles.subtitle}>Enter your PIN to open the app.</Text>
       </FadeIn>
       <View style={styles.message}>{message ? <Text style={styles.messageText}>{message}</Text> : null}</View>
-      <PinEntry digits={digits} onChange={change} disabled={busy} />
+      <PinEntry digits={digits} onChange={change} disabled={busy} length={pinLength} />
       <Button title="Forgotten your PIN?" variant="ghost" onPress={forgot} textStyle={{ color: 'rgba(255,255,255,0.85)' }} />
     </View>
   );
