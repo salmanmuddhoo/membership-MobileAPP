@@ -271,3 +271,59 @@ test('where the card earns a discount: every outlet has a logo, a category and a
     assert.match(o.discountPercent, /^\d+(\.\d+)?$/);
   }
 });
+
+test('money from the app waits for officers: every request is Pending approval', async () => {
+  const api = memberApi(createMockTransport());
+  const { accessToken: token } = await linkMember(api);
+  const reference = await api.reference();
+  assert.deepEqual(reference.enabledOperations, ['deposit', 'withdrawal', 'transfer']);
+  assert.ok(reference.depositMethods!.every(m => m.code !== 'cash'));
+
+  const before = await api.requests(token);
+  assert.ok(before.some(r => r.state === 'declined' && r.reason));
+
+  // A deposit names how it was paid, the Society's account and a reference.
+  await assert.rejects(
+    api.deposit(token, { accountId: 'acc-msa', amount: '750', method: 'bank_transfer' }, 'k-1'),
+    (e: unknown) => {
+      assert.ok(e instanceof ApiError && e.code === 'validation_failed');
+      assert.ok(e.details.methodReference && e.details.bankAccountId);
+      return true;
+    }
+  );
+  const deposit = { accountId: 'acc-msa', amount: '750', method: 'bank_transfer', methodReference: 'MB-9', bankAccountId: 'bank-mcb' };
+  await api.deposit(token, deposit, 'k-2');
+  // The same key is the same request: a retry never makes a second one.
+  await api.deposit(token, deposit, 'k-2');
+
+  // A withdrawal draws on what is available, less what is on its way out.
+  await api.withdraw(token, { accountId: 'acc-msa', amount: '4000' }, 'k-3');
+  const balance = await api.accountBalance(token, 'acc-msa');
+  assert.equal(balance.balance, '5000.00');
+  assert.equal(balance.available, '1000.00');
+  await assert.rejects(api.withdraw(token, { accountId: 'acc-msa', amount: '1000.01' }, 'k-4'), (e: unknown) => {
+    assert.ok(e instanceof ApiError && e.code === 'validation_failed');
+    return true;
+  });
+  await api.transfer(token, { sourceAccountId: 'acc-msa', destinationAccountId: 'acc-shares', amount: '100' }, 'k-5');
+  await assert.rejects(api.transfer(token, { sourceAccountId: 'acc-msa', destinationAccountId: 'acc-msa', amount: '1' }, 'k-6'));
+
+  const after = await api.requests(token);
+  const made = after.filter(r => !before.some(b => b.id === r.id));
+  assert.deepEqual(
+    made.map(r => [r.kind, r.state, r.statusLabel]),
+    [
+      ['transfer', 'pending', 'Pending approval'],
+      ['withdrawal', 'pending', 'Pending approval'],
+      ['deposit', 'pending', 'Pending approval'],
+    ]
+  );
+  assert.equal(made[0].counterpartAccountNo, 'SH-000001');
+  assert.equal(made[2].stage, 'Being verified by the accounts department');
+
+  // Somebody else's account is no account at all.
+  await assert.rejects(api.withdraw(token, { accountId: 'acc-nobody', amount: '1' }, 'k-7'), (e: unknown) => {
+    assert.ok(e instanceof ApiError && e.code === 'not_found');
+    return true;
+  });
+});

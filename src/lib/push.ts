@@ -4,17 +4,21 @@
 // so a new event the app does not know still opens the app, on Home.
 export type PushData = Record<string, string | undefined>;
 
-export type PushScreen = '/(member)/home' | '/(member)/accounts' | '/(member)/card';
+export type PushScreen = '/(member)/home' | '/(member)/accounts' | '/(member)/transact' | '/(member)/card';
 
 const SCREENS: Record<string, PushScreen> = {
   // Money moved: the accounts, where the new balance is.
   'deposit.posted': '/(member)/accounts',
-  'withdrawal.submitted': '/(member)/accounts',
-  'withdrawal.under_review': '/(member)/accounts',
   'withdrawal.disbursed': '/(member)/accounts',
-  'withdrawal.rejected': '/(member)/accounts',
   'transfer.posted': '/(member)/accounts',
   'balance.near_floor': '/(member)/accounts',
+  // A request on its way, or refused: Transact, where the request and
+  // the officer's reason are.
+  'withdrawal.submitted': '/(member)/transact',
+  'withdrawal.under_review': '/(member)/transact',
+  'withdrawal.rejected': '/(member)/transact',
+  'deposit.rejected': '/(member)/transact',
+  'transfer.rejected': '/(member)/transact',
   // Something new to see: the home page shows both.
   'partner.added': '/(member)/home',
   'promotion.published': '/(member)/home',
@@ -30,6 +34,6 @@ export function staleKeysFor(data: PushData | null | undefined): string[][] {
   const event = data?.event ?? '';
   if (event === 'partner.added') return [['outlets']];
   if (event === 'promotion.published') return [['promotions']];
-  if (event in SCREENS) return [['accounts'], ['dependents']];
+  if (event in SCREENS) return [['accounts'], ['dependents'], ['requests']];
   return [];
 }

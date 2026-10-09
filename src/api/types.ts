@@ -74,6 +74,91 @@ export interface FeeComponent {
 
 export interface Reference {
   membershipTypes: MembershipType[];
+  // The Society's bank accounts a deposit may have been paid into.
+  bankAccounts?: BankAccountOption[];
+  // Which transactions the app may start (Configuration -> Member app on
+  // the web application). Empty until the Society switches them on.
+  enabledOperations?: MemberOperation[];
+  // How a deposit may have been paid: never cash.
+  depositMethods?: DepositMethod[];
+}
+
+export type MemberOperation = 'deposit' | 'withdrawal' | 'transfer';
+
+export interface BankAccountOption {
+  id: string;
+  name: string;
+  bankName: string;
+}
+
+export interface DepositMethod {
+  code: string;
+  name: string;
+  // The transfer or transaction reference must be given.
+  requiresReference: boolean;
+  // Name which of the Society's bank accounts it reached.
+  touchesBank: boolean;
+}
+
+// A request the member made from the app, and where it stands. Officers
+// validate every one before money moves; until then it is "Pending
+// approval" (docs/member-api.md, /me/transactions).
+export type RequestState = 'pending' | 'approved' | 'completed' | 'declined' | 'returned' | 'cancelled';
+
+export interface MemberRequest {
+  id: string;
+  reference: string;
+  kind: MemberOperation;
+  state: RequestState;
+  // In the member's words: "Pending approval", "Approved", "Paid out"…
+  statusLabel: string;
+  // Who has it, or what happens next; null once it is finished.
+  stage: string | null;
+  amount: string;
+  currency: string;
+  accountId: string;
+  accountNo: string;
+  accountTypeName: string;
+  counterpartAccountNo: string | null;
+  counterpartAccountTypeName: string | null;
+  methodName: string | null;
+  note: string;
+  // Why it was not approved, as the officer wrote it.
+  reason: string | null;
+  createdAt: string;
+  completedAt: string | null;
+}
+
+export interface DepositInput {
+  accountId: string;
+  amount: string;
+  method: string;
+  methodReference?: string;
+  bankAccountId?: string;
+  reason?: string;
+}
+
+// How it is paid out is the Treasurer's to decide at disbursement.
+export interface WithdrawalInput {
+  accountId: string;
+  amount: string;
+  reason?: string;
+}
+
+export interface TransferInput {
+  sourceAccountId: string;
+  destinationAccountId: string;
+  amount: string;
+  reason?: string;
+}
+
+// An account's balance as the ledger states it, and what a further
+// withdrawal can draw on: the balance less every withdrawal on its way out.
+export interface AccountBalance {
+  accountId: string;
+  balance: string;
+  available: string;
+  currency: string;
 }
 
 // A partner outlet where the membership card earns a discount. Written by

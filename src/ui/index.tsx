@@ -316,7 +316,82 @@ export function ChoiceField({
   );
 }
 
+// One choice among a few, each with a line of detail: an account and its
+// balance, a bank account and its bank. Larger targets than ChoiceField's
+// chips, for choices a person has to read before picking.
+export function OptionField({
+  label,
+  value,
+  options,
+  onChange,
+  error,
+  required,
+}: {
+  label: string;
+  value: string | null;
+  options: { value: string; label: string; detail?: string; disabled?: boolean }[];
+  onChange: (value: string) => void;
+  error?: string | null;
+  required?: boolean;
+}) {
+  return (
+    <View style={styles.field} accessibilityRole="radiogroup" accessibilityLabel={label}>
+      <Text style={type.label}>
+        {label}
+        <FieldRequirement required={required} />
+      </Text>
+      <View style={styles.options}>
+        {options.map(option => {
+          const selected = option.value === value;
+          return (
+            <Pressable
+              key={option.value}
+              onPress={() => onChange(option.value)}
+              disabled={option.disabled}
+              accessibilityRole="radio"
+              accessibilityState={{ selected, disabled: option.disabled }}
+              style={[styles.option, selected && styles.optionSelected, option.disabled && styles.disabled]}
+            >
+              <View style={[styles.radio, selected && styles.radioSelected]}>
+                {selected ? <View style={styles.radioDot} /> : null}
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[type.label, selected && { color: colors.primary }]}>{option.label}</Text>
+                {option.detail ? <Text style={type.small}>{option.detail}</Text> : null}
+              </View>
+            </Pressable>
+          );
+        })}
+      </View>
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  options: { gap: spacing.sm, marginTop: spacing.sm },
+  option: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  optionSelected: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+  radio: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radioSelected: { borderColor: colors.primary },
+  radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.primary },
   safe: { flex: 1, backgroundColor: colors.bg },
   flex: { flex: 1 },
   padded: { padding: spacing.lg },

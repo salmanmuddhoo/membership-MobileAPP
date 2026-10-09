@@ -31,6 +31,10 @@ export interface RequestOptions {
   body?: unknown;
   token?: string | null;
   signal?: AbortSignal;
+  // Sent as the Idempotency-Key header, which every money-moving write
+  // demands: the same key again is the same request, so a retry after a
+  // dropped connection can never make a second deposit.
+  idempotencyKey?: string;
 }
 
 export interface Transport {
@@ -76,6 +80,7 @@ export function createHttpTransport(baseUrl: string): Transport {
           : options.body;
       if (writes) headers['content-type'] = 'application/json';
       if (options.token) headers.authorization = `Bearer ${options.token}`;
+      if (options.idempotencyKey) headers['idempotency-key'] = options.idempotencyKey;
 
       let response: Response;
       try {

@@ -18,13 +18,18 @@ export default function MemberLayout() {
 
   // Which tabs this person has. Accounts and Transact belong to anyone who
   // holds an account (a member, or a non-member account holder); the card
-  // is a member's; Applications is for whoever is not yet a member. Each
-  // appears once the profile says so, rather than flashing at the wrong
-  // person while it loads. Transact sits in the middle of the bar.
-  const kind = me.data?.kind;
+  // is a member's; Applications is for whoever is not yet a member.
+  // Transact sits in the middle of the bar.
+  //
+  // The session already says who this is — it comes out of the keychain
+  // before the first frame — so the bar is complete from the start. It
+  // used to wait for the profile request, and showed Home and My details
+  // alone for a moment on every open (officer report). The profile still
+  // wins once it arrives, should the two ever disagree.
+  const kind = me.data?.kind ?? session.identity.kind;
   const hasAccounts = kind === 'member' || kind === 'customer';
   const isMember = kind === 'member';
-  const showApplications = !!kind && kind !== 'member';
+  const showApplications = kind !== 'member';
   const tab = (shown: boolean) => (shown ? undefined : null);
 
   return (

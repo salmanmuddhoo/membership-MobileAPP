@@ -1,9 +1,8 @@
 // The membership card: the physical card every member carries, on the
-// phone — name, Member No. and a barcode — and beneath it the partner
-// outlets where it earns a discount, by category.
-//
-// The barcode is a placeholder pattern until the Society settles the
-// symbology its partner outlets will scan (lib/barcode.ts).
+// phone — name, Member No. and the year they joined, in raised gold
+// lettering (officer direction) — and beneath it the partner outlets where
+// it earns a discount, by category. No barcode: the card is shown, not
+// scanned.
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useState } from 'react';
@@ -13,13 +12,15 @@ import { useAuth } from '@/auth/AuthContext';
 import { useMe, useOutlets } from '@/hooks/queries';
 import { categoriesOf, categoryLabel, discountLabel } from '@/lib/outlets';
 import { Banner, Body, Card, Empty, Heading, Loading } from '@/ui';
-import { Barcode } from '@/ui/Barcode';
-import { EmbossedText } from '@/ui/Embossed';
+import { GoldText } from '@/ui/GoldText';
 import { Logo } from '@/ui/Logo';
 import { colors, radius, spacing, type } from '@/ui/theme';
 
 // ISO/IEC 7810 ID-1: the proportions of a bank card.
 const CARD_RATIO = 85.6 / 53.98;
+
+// The small print on the card, in the lettering's own gold, muted.
+const GOLD_SOFT = 'rgba(240, 210, 130, 0.8)';
 
 export default function MembershipCard() {
   const { session } = useAuth();
@@ -58,7 +59,9 @@ export default function MembershipCard() {
 
         <View style={styles.cardHead}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.brand}>AL BARAKAH</Text>
+            <GoldText size={20} letterSpacing={2.5}>
+              AL BARAKAH
+            </GoldText>
             <Text style={styles.brandSub}>Multi-purpose Co-operative Society Ltd</Text>
           </View>
           <Logo size={40} />
@@ -66,36 +69,32 @@ export default function MembershipCard() {
 
         <View style={styles.cardChipRow}>
           <Chip />
-          <MaterialCommunityIcons name="contactless-payment" size={26} color="rgba(255,255,255,0.75)" />
+          <MaterialCommunityIcons name="contactless-payment" size={26} color={GOLD_SOFT} />
         </View>
 
         <View style={{ flex: 1 }} />
 
-        <EmbossedText size={nameSize(profile.memberNo, 22)} letterSpacing={3} style={styles.number}>
+        <GoldText size={nameSize(profile.memberNo, 26)} letterSpacing={4} style={styles.number}>
           {profile.memberNo}
-        </EmbossedText>
+        </GoldText>
 
         <View style={styles.cardFoot}>
           <View style={{ flex: 1 }}>
             <Text style={styles.fieldLabel}>MEMBER</Text>
-            <EmbossedText size={nameSize(name, 17)} letterSpacing={1.5}>
+            <GoldText size={nameSize(name, 18)} letterSpacing={1.5}>
               {name}
-            </EmbossedText>
+            </GoldText>
           </View>
           {since ? (
             <View style={styles.since}>
               <Text style={styles.fieldLabel}>SINCE</Text>
-              <EmbossedText size={15} letterSpacing={1}>
+              <GoldText size={16} letterSpacing={1}>
                 {String(since)}
-              </EmbossedText>
+              </GoldText>
             </View>
           ) : null}
         </View>
       </LinearGradient>
-
-      <Card style={styles.barcode}>
-        <Barcode value={profile.memberNo} />
-      </Card>
 
       <Heading>Where to use your card</Heading>
       {outlets.isLoading ? <Loading /> : null}
@@ -122,7 +121,7 @@ export default function MembershipCard() {
   );
 }
 
-// Embossed lettering cannot shrink to fit (three copies would each shrink
+// Raised lettering cannot shrink to fit (its layers would each shrink
 // differently), so the size is chosen from the length instead.
 function nameSize(text: string, full: number): number {
   if (text.length <= 16) return full;
@@ -204,6 +203,9 @@ const styles = StyleSheet.create({
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 10 },
     elevation: 10,
+    // A gold trim, as on the reference card.
+    borderWidth: 1,
+    borderColor: 'rgba(214, 172, 74, 0.55)',
   },
   sheenBand: {
     position: 'absolute',
@@ -224,8 +226,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(200,162,76,0.14)',
   },
   cardHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  brand: { color: '#fff', fontSize: 17, fontWeight: '800', letterSpacing: 2.5 },
-  brandSub: { color: 'rgba(255,255,255,0.7)', fontSize: 10, marginTop: 2 },
+  brandSub: { color: GOLD_SOFT, fontSize: 10, marginTop: 4 },
   cardChipRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginTop: spacing.md },
   cardChip: {
     width: 44,
@@ -240,8 +241,7 @@ const styles = StyleSheet.create({
   number: { marginBottom: spacing.md },
   cardFoot: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.md },
   since: { alignItems: 'flex-end' },
-  fieldLabel: { color: 'rgba(255,255,255,0.6)', fontSize: 8, letterSpacing: 1.5, marginBottom: 3 },
-  barcode: { paddingVertical: spacing.lg },
+  fieldLabel: { color: GOLD_SOFT, fontSize: 8, letterSpacing: 1.5, marginBottom: 4 },
   chips: { marginHorizontal: -spacing.lg },
   chipRow: { paddingHorizontal: spacing.lg, gap: spacing.sm },
   chip: {

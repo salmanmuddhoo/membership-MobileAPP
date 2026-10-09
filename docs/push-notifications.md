@@ -18,8 +18,11 @@ messages; the app only decides which screen a tap opens.
    account of the same Firebase project. One notification row per event
    on its side; one message per phone.
 3. A notification carries the event code as data. The app maps it to a
-   screen (`src/lib/push.ts`): money events open **Accounts**, news opens
-   **Home**; anything it does not know opens Home. A notification that
+   screen (`src/lib/push.ts`): money that moved opens **Accounts**; a
+   request refused (`deposit.rejected`, `withdrawal.rejected`,
+   `transfer.rejected`) opens **Transact**, where the request and the
+   officer's reason are; news opens **Home**; anything it does not know
+   opens Home. A notification that
    arrives while the app is open refreshes the data it is about, so the
    balance is right by the time the member looks.
 
