@@ -8,6 +8,7 @@ import type {
   Application,
   ChangeRequest,
   DepositInput,
+  DepositOptions,
   Dependent,
   DeviceRegistration,
   FiledDocument,
@@ -103,6 +104,9 @@ export function memberApi(transport: Transport) {
     // they decide. The idempotency key is the form's own: the same key
     // again is the same request.
     requests: (token: string) => call<MemberRequest[]>('/me/transactions', { token }),
+
+    // How a deposit may be paid, and the Society's bank account numbers.
+    depositOptions: (token: string) => call<DepositOptions>('/me/deposit-options', { token }),
 
     accountBalance: (token: string, accountId: string) =>
       call<AccountBalance>(`/me/accounts/${encodeURIComponent(accountId)}/balance`, { token }),

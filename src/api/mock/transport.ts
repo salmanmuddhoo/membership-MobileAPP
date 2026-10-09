@@ -308,14 +308,14 @@ const OUTLETS: Outlet[] = [
 ];
 
 const BANK_ACCOUNTS = [
-  { id: 'bank-mcb', name: 'MCB current account', bankName: 'MCB' },
-  { id: 'bank-sbm', name: 'SBM savings account', bankName: 'SBM' },
+  { id: 'bank-mcb', name: 'MCB current account', bankName: 'MCB', accountNumber: '000444123456' },
+  { id: 'bank-sbm', name: 'SBM savings account', bankName: 'SBM', accountNumber: '61030100012345' },
 ];
 
+// Bank transfer or Juice, nothing else from the app (officer direction).
 const DEPOSIT_METHODS = [
   { code: 'bank_transfer', name: 'Bank transfer', requiresReference: true, touchesBank: true },
-  { code: 'juice', name: 'MCB Juice', requiresReference: true, touchesBank: true },
-  { code: 'cheque', name: 'Cheque', requiresReference: true, touchesBank: true },
+  { code: 'juice', name: 'Juice', requiresReference: true, touchesBank: true },
 ];
 
 export function createMockTransport(): Transport {
@@ -346,10 +346,16 @@ export function createMockTransport(): Transport {
   const byKey = new Map<string, MemberRequest>();
   let txSerial = 1200;
 
-  function ownAccount(person: Person, id: string): AccountSummary {
-    const account = person.accounts.find(a => a.id === id);
-    if (!account) throw fail('not_found', 'No such account.');
-    return account;
+  // One of the member's own accounts, or a minor's in their care — the
+  // same not_found for anything else, as the backend's accountInReach.
+  function accountInReach(person: Person, id: string): { account: AccountSummary; forMinor: string | null } {
+    const own = person.accounts.find(a => a.id === id);
+    if (own) return { account: own, forMinor: null };
+    for (const minor of person.dependents) {
+      const theirs = minor.accounts.find(a => a.id === id);
+      if (theirs) return { account: theirs, forMinor: minor.name };
+    }
+    throw fail('not_found', 'No such account.');
   }
 
   // The balance less every withdrawal and transfer still on its way out.
@@ -393,6 +399,7 @@ export function createMockTransport(): Transport {
       counterpart?: AccountSummary;
       amount: string;
       methodName?: string;
+      forMinor: string | null;
       note: string;
       stage: string;
     }
@@ -413,6 +420,7 @@ export function createMockTransport(): Transport {
       counterpartAccountNo: r.counterpart?.accountNo ?? null,
       counterpartAccountTypeName: r.counterpart?.typeName ?? null,
       methodName: r.methodName ?? null,
+      forMinor: r.forMinor,
       note: r.note,
       reason: null,
       createdAt: iso(new Date()),
@@ -635,7 +643,8 @@ export function createMockTransport(): Transport {
       pattern: /^\/api\/v1\/member\/reference$/,
       handle: () => ({
         membershipTypes: MEMBERSHIP_TYPES.filter(t => t.isActive),
-        bankAccounts: BANK_ACCOUNTS,
+        // Named only: the numbers are for a signed-in member.
+        bankAccounts: BANK_ACCOUNTS.map(({ id, name, bankName }) => ({ id, name, bankName })),
         // All three on, so the app can be tried end to end. The real
         // backend has none on until the Society switches them on.
         enabledOperations: ['deposit', 'withdrawal', 'transfer'],
@@ -643,6 +652,16 @@ export function createMockTransport(): Transport {
       }),
     },
     // --- moving money: every request waits for officers ----------------
+    {
+      method: 'GET',
+      pattern: /^\/api\/v1\/member\/me\/deposit-options$/,
+      handle: (_, __, options) => {
+        const person = personForSubject(requireSession(options));
+        // An applicant holds no account to pay into.
+        if (person.profile.kind !== 'member') throw fail('forbidden', 'Only a member can pay in from the app.');
+        return { methods: DEPOSIT_METHODS, bankAccounts: BANK_ACCOUNTS };
+      },
+    },
     {
       method: 'GET',
       pattern: /^\/api\/v1\/member\/me\/transactions$/,
@@ -656,7 +675,7 @@ export function createMockTransport(): Transport {
       pattern: /^\/api\/v1\/member\/me\/accounts\/([^/]+)\/balance$/,
       handle: ([, id], __, options) => {
         const person = personForSubject(requireSession(options));
-        const account = ownAccount(person, id);
+        const { account } = accountInReach(person, id);
         return {
           accountId: account.id,
           balance: account.balance ?? '0.00',
@@ -672,16 +691,16 @@ export function createMockTransport(): Transport {
         const person = personForSubject(requireSession(options));
         return {
           deposit: once(options, () => {
-            const account = ownAccount(person, String(body?.accountId ?? ''));
+            const { account, forMinor } = accountInReach(person, String(body?.accountId ?? ''));
             const amount = checkedAmount(body?.amount);
             const method = DEPOSIT_METHODS.find(m => m.code === body?.method);
             const details: Record<string, string[]> = {};
-            if (!method) details.method = ['Choose how it was paid; never cash.'];
+            if (!method) details.method = ['Choose Bank transfer or Juice.'];
             if (method?.requiresReference && !String(body?.methodReference ?? '').trim()) {
-              details.methodReference = ['Give the transfer reference.'];
+              details.methodReference = ['Enter the reference of your transaction.'];
             }
             if (method?.touchesBank && !BANK_ACCOUNTS.some(b => b.id === body?.bankAccountId)) {
-              details.bankAccountId = ["Choose which of the Society's bank accounts it reached."];
+              details.bankAccountId = ["Choose the Society's bank account number you paid into."];
             }
             if (Object.keys(details).length > 0) throw fail('validation_failed', 'Check the details.', details);
             return file(person, {
@@ -689,6 +708,7 @@ export function createMockTransport(): Transport {
               account,
               amount,
               methodName: method!.name,
+              forMinor,
               note: String(body?.reason ?? ''),
               stage: 'Being verified by the accounts department',
             });
@@ -703,9 +723,16 @@ export function createMockTransport(): Transport {
         const person = personForSubject(requireSession(options));
         return {
           withdrawal: once(options, () => {
-            const account = ownAccount(person, String(body?.accountId ?? ''));
+            const { account, forMinor } = accountInReach(person, String(body?.accountId ?? ''));
             const amount = checkedAmount(body?.amount, available(person, account));
-            return file(person, { kind: 'withdrawal', account, amount, note: String(body?.reason ?? ''), stage: 'With the Secretary' });
+            return file(person, {
+              kind: 'withdrawal',
+              account,
+              amount,
+              forMinor,
+              note: String(body?.reason ?? ''),
+              stage: 'With the Secretary',
+            });
           }),
         };
       },
@@ -717,8 +744,10 @@ export function createMockTransport(): Transport {
         const person = personForSubject(requireSession(options));
         return {
           transfer: once(options, () => {
-            const account = ownAccount(person, String(body?.sourceAccountId ?? ''));
-            const destination = person.accounts.find(a => a.id === body?.destinationAccountId);
+            const { account, forMinor } = accountInReach(person, String(body?.sourceAccountId ?? ''));
+            const destination = [...person.accounts, ...person.dependents.flatMap(d => d.accounts)].find(
+              a => a.id === body?.destinationAccountId
+            );
             if (!destination) throw fail('not_found', 'No such account.');
             if (destination.id === account.id) {
               throw fail('validation_failed', 'Choose two different accounts.', {
@@ -731,6 +760,7 @@ export function createMockTransport(): Transport {
               account,
               counterpart: destination,
               amount,
+              forMinor,
               note: String(body?.reason ?? ''),
               stage: 'With the Secretary',
             });

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { amountProblem, normaliseAmount, requestTitle, sortRequests, toneFor } from '../src/lib/transact.ts';
-import type { MemberRequest } from '../src/api/types.ts';
+import { amountProblem, moneyAccounts, normaliseAmount, requestTitle, sortRequests, toneFor } from '../src/lib/transact.ts';
+import type { AccountSummary, Dependent, MemberRequest } from '../src/api/types.ts';
 
 test('an amount is rupees, at most two decimals, above zero, and within what is available', () => {
   assert.equal(normaliseAmount(' Rs 1,500.50 '), '1500.50');
@@ -64,3 +64,39 @@ test('what is still with the officers comes first, newest first', () => {
     ['new-open', 'old-open', 'new-done', 'old-done']
   );
 });
+
+function account(id: string, status = 'active'): AccountSummary {
+  return {
+    id,
+    accountNo: id.toUpperCase(),
+    typeCode: 'msa',
+    typeName: 'Multiplier Savings Account',
+    category: 'savings',
+    status,
+    openedAt: '2026-01-01T00:00:00Z',
+    balance: '100.00',
+    transactionCount: 1,
+  };
+}
+
+test("a form offers the member's own open accounts, then each minor's, named", () => {
+  const minor: Dependent = {
+    id: 'm1',
+    kind: 'member',
+    memberNo: 'AB0007',
+    name: 'Zaid',
+    relationship: 'Mother',
+    status: 'active',
+    accounts: [account('zaid-msa'), account('zaid-old', 'closed')],
+  };
+  const list = moneyAccounts([account('own-msa'), account('own-closed', 'closed')], [minor]);
+  assert.deepEqual(
+    list.map(a => [a.id, a.holderName]),
+    [
+      ['own-msa', null],
+      ['zaid-msa', 'Zaid'],
+    ]
+  );
+  assert.deepEqual(moneyAccounts(undefined, undefined), []);
+});
+

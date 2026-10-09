@@ -14,6 +14,7 @@ export const keys = {
     ['dependents', dependentId, 'accounts', accountId, 'transactions'] as const,
   promotions: ['promotions'] as const,
   requests: ['requests'] as const,
+  depositOptions: ['deposit-options'] as const,
   balance: (accountId: string) => ['accounts', accountId, 'balance'] as const,
   outlets: ['outlets'] as const,
   applications: ['applications'] as const,
@@ -172,6 +173,17 @@ export function useRequests() {
   });
 }
 
+// How a deposit may be paid, and the Society's account numbers to pay to.
+export function useDepositOptions() {
+  const { withToken, session } = useAuth();
+  return useQuery({
+    queryKey: keys.depositOptions,
+    queryFn: () => withToken(t => api.depositOptions(t)),
+    enabled: !!session,
+    staleTime: 5 * 60_000,
+  });
+}
+
 // What a withdrawal or transfer from this account can draw on.
 export function useAccountBalance(accountId: string | null) {
   const { withToken, session } = useAuth();
@@ -183,7 +195,7 @@ export function useAccountBalance(accountId: string | null) {
 }
 
 // A request changes the list of requests and, once an officer acts, the
-// balances: both are refetched.
+// balances — the member's own and their minors': all are refetched.
 function useMoneyMutation<I>(send: (token: string, input: I, key: string) => Promise<unknown>) {
   const { withToken } = useAuth();
   const qc = useQueryClient();
@@ -193,6 +205,7 @@ function useMoneyMutation<I>(send: (token: string, input: I, key: string) => Pro
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: keys.requests });
       qc.invalidateQueries({ queryKey: keys.accounts });
+      qc.invalidateQueries({ queryKey: keys.dependents });
     },
   });
 }

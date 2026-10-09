@@ -1,23 +1,26 @@
-// Telling the Society about money already paid in: by bank transfer, Juice
-// or a cheque, never cash. Nothing reaches the balance until the accounts
+// Telling the Society about money already paid in, by bank transfer or
+// Juice — nothing else from the app — into one of the member's accounts or
+// a minor's in their care. Nothing reaches the balance until the accounts
 // department has checked it arrived (migration 0120 on the backend).
 import React, { useState } from 'react';
-import { useAccounts, useDeposit, useReference } from '@/hooks/queries';
+import { ApiError } from '@/api';
+import { useDeposit, useDepositOptions, useReference } from '@/hooks/queries';
 import { amountProblem, normaliseAmount } from '@/lib/transact';
 import { Banner, Body, Button, Empty, Loading, OptionField, Screen, TextField } from '@/ui';
 import {
   accountOption,
-  activeAccounts,
   NO_PROBLEMS,
   problemsFrom,
   useIdempotencyKey,
+  useMoneyAccounts,
   useSent,
   type Problems,
 } from '@/transact/shared';
 
 export default function Deposit() {
   const reference = useReference();
-  const accounts = useAccounts();
+  const accounts = useMoneyAccounts();
+  const options = useDepositOptions();
   const deposit = useDeposit();
   const key = useIdempotencyKey();
   const sent = useSent();
@@ -25,20 +28,28 @@ export default function Deposit() {
   const [accountId, setAccountId] = useState<string | null>(null);
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState<string | null>(null);
-  const [bankAccountId, setBankAccountId] = useState<string | null>(null);
+  const [chosenBank, setChosenBank] = useState<string | null>(null);
   const [methodReference, setMethodReference] = useState('');
   const [note, setNote] = useState('');
   const [problems, setProblems] = useState<Problems>(NO_PROBLEMS);
 
-  if (reference.isLoading || accounts.isLoading) return <Loading />;
+  if (reference.isLoading || accounts.isLoading || options.isLoading) return <Loading />;
   if (!reference.data?.enabledOperations?.includes('deposit')) {
     return <Empty title="Not available yet">Deposits from the app have not been switched on. Visit a branch.</Empty>;
   }
+  if (options.error) {
+    return (
+      <Empty title="Could not load">
+        {options.error instanceof ApiError ? options.error.userMessage : 'Please try again in a moment.'}
+      </Empty>
+    );
+  }
 
-  const options = activeAccounts(accounts.data);
-  const methods = reference.data.depositMethods ?? [];
+  const methods = options.data?.methods ?? [];
   const chosen = methods.find(m => m.code === method) ?? null;
-  const banks = reference.data.bankAccounts ?? [];
+  const banks = options.data?.bankAccounts ?? [];
+  // With one account to pay into there is nothing to choose.
+  const bankAccountId = chosenBank ?? (banks.length === 1 ? banks[0].id : null);
 
   async function send() {
     const fields: Record<string, string> = {};
@@ -46,8 +57,8 @@ export default function Deposit() {
     const amountError = amountProblem(amount);
     if (amountError) fields.amount = amountError;
     if (!chosen) fields.method = 'Choose how you paid.';
-    if (chosen?.touchesBank && !bankAccountId) fields.bankAccountId = "Choose which of the Society's accounts you paid into.";
-    if (chosen?.requiresReference && !methodReference.trim()) fields.methodReference = 'Give the reference shown on your transfer or slip.';
+    if (chosen?.touchesBank && !bankAccountId) fields.bankAccountId = "Choose the Society's bank account number you paid into.";
+    if (chosen?.requiresReference && !methodReference.trim()) fields.methodReference = 'Enter the reference of your transaction.';
     if (Object.keys(fields).length > 0) {
       setProblems({ message: 'Some details need attention.', fields });
       return;
@@ -65,7 +76,7 @@ export default function Deposit() {
         },
         idempotencyKey: key,
       });
-      await sent('deposit', 'the accounts department checks the money reached the Society, then records it.');
+      await sent('deposit');
     } catch (e) {
       setProblems(problemsFrom(e));
     }
@@ -73,17 +84,12 @@ export default function Deposit() {
 
   return (
     <Screen footer={<Button title="Send for approval" onPress={send} loading={deposit.isPending} />}>
-      <Banner tone="info" title="Pay first, then tell us here">
-        {
-          "Make the payment by bank transfer, Juice or cheque to one of the Society's accounts. The accounts department checks it arrived before it reaches your balance. Cash is paid in at a branch."
-        }
-      </Banner>
       {problems.message ? <Banner tone="danger">{problems.message}</Banner> : null}
       <OptionField
         label="Into which account"
         required
         value={accountId}
-        options={options.map(accountOption)}
+        options={accounts.list.map(accountOption)}
         onChange={setAccountId}
         error={problems.fields.accountId}
       />
@@ -106,11 +112,11 @@ export default function Deposit() {
       />
       {chosen?.touchesBank ? (
         <OptionField
-          label="The Society's account you paid into"
+          label="Bank account Number of the society"
           required
           value={bankAccountId}
-          options={banks.map(b => ({ value: b.id, label: b.name, detail: b.bankName }))}
-          onChange={setBankAccountId}
+          options={banks.map(b => ({ value: b.id, label: b.accountNumber, detail: b.bankName }))}
+          onChange={setChosenBank}
           error={problems.fields.bankAccountId}
         />
       ) : null}
@@ -121,7 +127,7 @@ export default function Deposit() {
           value={methodReference}
           onChangeText={setMethodReference}
           autoCapitalize="characters"
-          placeholder="As shown on your transfer or slip"
+          placeholder="Reference of your transaction"
           error={problems.fields.methodReference}
         />
       ) : null}

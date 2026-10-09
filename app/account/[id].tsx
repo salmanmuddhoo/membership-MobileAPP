@@ -39,10 +39,7 @@ export default function AccountDetail() {
           <View style={styles.txRow}>
             <View style={{ flex: 1 }}>
               <Text style={type.body}>{t.description}</Text>
-              <Text style={type.small}>
-                {formatDate(t.occurredAt)}
-                {t.receiptNo ? ` · Receipt ${t.receiptNo}` : ''}
-              </Text>
+              <Text style={type.small}>{formatDate(t.occurredAt)}</Text>
             </View>
             <Text style={[styles.amount, t.direction === 'debit' && styles.debit]}>
               {t.direction === 'debit' ? '−' : '+'}
