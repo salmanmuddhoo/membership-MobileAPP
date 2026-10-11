@@ -63,16 +63,41 @@ app then updates in place from one build to the next.
 
 GitHub → **Actions → Android APK → Run workflow**, `app`:
 
-- **`test`** — Al Barakah Test, against the test site on Vercel.
-- **`production`** — Al Barakah, against production on Azure. With the
-  signing key set, the run also produces the `.aab` to upload to Google
-  Play.
+- **`test`** — Al Barakah Test, against the test site on Vercel, built
+  from the branch the run is started from (`main`, unless another is
+  picked in "Use workflow from").
+- **`production`** — Al Barakah, against production on Azure, built from
+  the **`production`** branch and nothing else, whichever branch the run
+  is started from. With the signing key set, the run also produces the
+  `.aab` to upload to Google Play.
 
 Nothing else to fill in: the address comes with the app.
 
-Pushing a version tag (`v0.2.0`) builds both apps and attaches both to the
-release. The run's summary names the package, the backend and whether push
-notifications are on.
+Pushing a version tag (`v0.2.0`) builds both apps from the tagged commit
+and attaches both to the release; the members' app is refused unless that
+commit is on `production`, so tag on `production`. The run's summary names
+the package, the backend, the branch and commit it was built from, and
+whether push notifications are on.
+
+## Promoting to production
+
+The two repositories go to production together, because the members' app
+calls the production site and must never call something it does not have
+yet. The mobile repository has the same two branches as the backend:
+`main`, which the test app is built from, and `production`, which the
+members' app is built from. `production` only ever receives from `main`.
+
+1. Test on the test app (from `main`) against the test site.
+2. **Backend first**: promote the `membership` repository's `main` to its
+   `production` branch (its `docs/environments.md`, "Promoting `main` →
+   Production") and wait for Azure to deploy and run the migrations.
+3. **Then the app**: in this repository, open a pull request from `main`
+   into `production` and merge it. CI checks it on the way.
+4. Run the workflow with `app: production`, and upload the `.aab` to Google
+   Play (or share the APK).
+
+Never commit to `production` directly, and never promote the app ahead of
+the backend.
 
 ## Phones that already have the app
 
