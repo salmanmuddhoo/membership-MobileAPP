@@ -26,14 +26,14 @@ this order, a first review usually passes.
 
 - Upload the **`.aab`**, not the `.apk`. The Android workflow produces one
   beside the APK whenever the repository's key is set; it is in the
-  `albarakah-member-apk` artifact and attached to tagged releases.
+  `albarakah-member-production` artifact and attached to tagged releases.
 - Each upload must carry a **higher `versionCode`** than the last.
   `app.config.js` takes it from the workflow's run number, so a later
   build is always a later version. Bump the human-readable `version` in
   `app.json` when the Society wants a new version number shown.
-- Build it **live**, with the production origin: run the workflow with
-  `api_mode: live` and `api_url` set to the production web application.
-  A mock build must never go to the store.
+- Build the **members' app**: run the workflow with `app: production`. It
+  talks to production on Azure (`https://albarakah-app.com`) and installs
+  as `mu.albarakah.member`; the test app never goes to the store.
 
 ## The forms
 
