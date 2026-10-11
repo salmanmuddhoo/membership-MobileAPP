@@ -30,7 +30,7 @@ Variables** tab → **New repository variable**, twice:
 | Variable             | Value                                                                                                                                                       |
 | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `TEST_API_URL`       | The test site's address on Vercel, e.g. `https://membership-ivory.vercel.app`. Optional: this is also the default.                                          |
-| `PRODUCTION_API_URL` | The production site on Azure: the Society's domain once it points at Azure, or `https://albarakah-production.azurewebsites.net` until then. **Required.** |
+| `PRODUCTION_API_URL` | The production site on Azure: `https://albarakah-app.com`. **Required.** |
 
 `https://`, no path and no trailing slash. These are variables, not
 secrets: an address is not confidential. The members' app is built against

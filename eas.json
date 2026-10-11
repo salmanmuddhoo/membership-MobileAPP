@@ -30,7 +30,7 @@
       "env": {
         "APP_VARIANT": "production",
         "EXPO_PUBLIC_API_MODE": "live",
-        "EXPO_PUBLIC_API_URL": "https://www.albarakah.mu"
+        "EXPO_PUBLIC_API_URL": "https://albarakah-app.com"
       }
     }
   },
