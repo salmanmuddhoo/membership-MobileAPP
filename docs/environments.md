@@ -7,8 +7,8 @@ only to its own backend.
 
 | App                 | Name on the phone   | Package (Android)          | Talks to                                      | Who installs it                                 |
 | ------------------- | ------------------- | -------------------------- | --------------------------------------------- | ----------------------------------------------- |
-| **Test app**        | **Al Barakah Test** | `mu.albarakah.member.test` | the test site on Vercel (`TEST_API_URL`)      | the Society's staff, to try changes before members see them |
-| **Members' app**    | **Al Barakah**      | `mu.albarakah.member`      | production on Azure (`PRODUCTION_API_URL`)    | members — from Google Play, or the APK          |
+| **Test app**        | **Al Barakah Test** | `mu.albarakah.member.test` | the test site on Vercel, `https://membership-ivory.vercel.app` | the Society's staff, to try changes before members see them |
+| **Members' app**    | **Al Barakah**      | `mu.albarakah.member`      | production on Azure, `https://albarakah-app.com`               | members — from Google Play, or the APK          |
 
 Because the packages differ, **both can be installed on the same phone**,
 side by side. The test app has an orange icon background and says
@@ -16,29 +16,15 @@ side by side. The test app has an orange icon background and says
 members' app has neither.
 
 Which app a build is comes from one setting, `APP_VARIANT`
-(`scripts/app-variants.js`, read by `app.config.js`): `test` — also the
-default, so nothing built by accident carries the members' package — or
-`production`.
+(`scripts/app-variants.js`, read by `app.config.js` and the APK workflow):
+`test` — also the default, so nothing built by accident carries the
+members' package — or `production`. Each app's address is written in that
+same table, so building either needs nothing typed: to move an app to
+another address, change it there (and in `eas.json`, for EAS builds).
 
 ## One-time setup
 
-### 1. Tell GitHub the two addresses
-
-GitHub → this repository → **Settings → Secrets and variables → Actions →
-Variables** tab → **New repository variable**, twice:
-
-| Variable             | Value                                                                                                                                                       |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `TEST_API_URL`       | The test site's address on Vercel, e.g. `https://membership-ivory.vercel.app`. Optional: this is also the default.                                          |
-| `PRODUCTION_API_URL` | The production site on Azure: `https://albarakah-app.com`. **Required.** |
-
-`https://`, no path and no trailing slash. These are variables, not
-secrets: an address is not confidential. The members' app is built against
-`PRODUCTION_API_URL` and nothing else — the workflow refuses to build it
-without one, with a typed override, or against the test site
-(`scripts/choose-backend.sh`).
-
-### 2. Push notifications for both apps
+### 1. Push notifications for both apps
 
 Firebase must know both packages; `docs/push-notifications.md`, "Setting
 it up", has the steps. In short: add a second Android app,
@@ -48,7 +34,7 @@ it up", has the steps. In short: add a second Android app,
 not list its package still builds, without notifications, and its run
 summary says what to add.
 
-### 3. The production backend on Azure
+### 2. The production backend on Azure
 
 The App Service needs the member app's own settings
 (`docs/deployment-azure.md` in the `membership` repository, the settings
@@ -67,7 +53,7 @@ Then, on the production site, switch on what the app may do at
 **Configuration → Bank accounts** — production's own configuration, not
 the test site's.
 
-### 4. The signing key
+### 3. The signing key
 
 The same signing-key secrets (`ANDROID_KEYSTORE_BASE64` and its three
 passwords, `docs/install-android.md`) sign both apps. Keep them set: each
@@ -77,12 +63,12 @@ app then updates in place from one build to the next.
 
 GitHub → **Actions → Android APK → Run workflow**, `app`:
 
-- **`test`** — Al Barakah Test, against `TEST_API_URL`. `api_url` may name
-  another test address for one run.
-- **`production`** — Al Barakah, against `PRODUCTION_API_URL`. With the
+- **`test`** — Al Barakah Test, against the test site on Vercel.
+- **`production`** — Al Barakah, against production on Azure. With the
   signing key set, the run also produces the `.aab` to upload to Google
   Play.
-- **`demo`** — the test app with built-in demo data and no backend.
+
+Nothing else to fill in: the address comes with the app.
 
 Pushing a version tag (`v0.2.0`) builds both apps and attaches both to the
 release. The run's summary names the package, the backend and whether push

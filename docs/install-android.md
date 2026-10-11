@@ -22,22 +22,21 @@ production on Azure. They are separate apps — both can be on one phone.
 
 1. Open **this** repository (`membership-MobileAPP`, not `membership`) on
    GitHub → **Actions** → **Android APK** (left-hand list).
-2. Click **Run workflow**. A small form drops down with two fields:
+2. Click **Run workflow**. A small form drops down with one choice, `app`:
 
-   | Field     | Choose                                                                                                                                                                                                                                |
-   | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-   | `app`     | `test` — Al Barakah Test, against the test site (`TEST_API_URL`). `production` — Al Barakah, the members' app, against production on Azure (`PRODUCTION_API_URL`). `demo` — the test app with its own demo data and no server at all. |
-   | `api_url` | Leave empty. For the test app only, an address typed here replaces `TEST_API_URL` for this one run. The members' app is only ever built against `PRODUCTION_API_URL`.                                                                |
+   - `test` — **Al Barakah Test**, against the test site on Vercel.
+   - `production` — **Al Barakah**, the members' app, against production
+     on Azure.
 
-   The address is baked into the APK at build time, so pointing an app
-   somewhere else later means building again. `docs/environments.md` says
-   where the two addresses are set.
+   Nothing to type: each app's address is part of the code
+   (`scripts/app-variants.js`, `docs/environments.md`) and baked into the
+   APK at build time.
 
    Then press the green **Run workflow** button in the form.
 
 3. Wait for the run to finish (about 10 minutes the first time).
 4. Open the finished run, scroll to **Artifacts**, and download
-   `albarakah-member-test` (or `-production`, `-demo`). It is a zip
+   `albarakah-member-test` (or `albarakah-member-production`). It is a zip
    containing one `.apk`.
 5. Get the `.apk` onto the phone: email it to yourself, put it in Google
    Drive, or plug the phone in and copy it to Downloads.
@@ -55,10 +54,9 @@ production on Azure. They are separate apps — both can be on one phone.
    this source** the first time (Settings → Apps → Special access → Install
    unknown apps, or just follow the prompt). Allow it, then **Install**.
 8. Open **Al Barakah Test** (orange icon, "TEST" on every screen) or
-   **Al Barakah**. In the demo build: "I'm already a member" with NIC
-   `P1503881234567` and AB Number `AB0001`, code `123456`. Otherwise,
-   check the version on the sign-in screen matches the build you just
-   installed — if it does not, the install did not replace the old app.
+   **Al Barakah**, and check the version on the sign-in screen matches the
+   build you just installed — if it does not, the install did not replace
+   the old app.
 
 Pushing a tag that starts with `v` (for example `v0.1.0`) also runs this
 workflow and attaches the APK to a **GitHub Release**, which gives you a

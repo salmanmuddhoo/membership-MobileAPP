@@ -3,21 +3,24 @@
 // production on Azure. Each is its own app on the phone — its own package
 // name, so both install side by side; its own name and icon, so nobody
 // mistakes one for the other — and each talks only to its own backend,
-// which the build gives it (EXPO_PUBLIC_API_URL).
+// named here (apiUrl) and baked in at build time (EXPO_PUBLIC_API_URL), so
+// nobody types an address to build one.
 //
 // Read by app.config.js and by the APK workflow, so the package a build
-// is signed as and the one its Firebase configuration must name are the
-// same by construction.
+// is signed as, the one its Firebase configuration must name and the site
+// it talks to are the same by construction.
 const VARIANTS = {
   test: {
     name: 'Al Barakah Test',
     package: 'mu.albarakah.member.test',
+    apiUrl: 'https://membership-ivory.vercel.app',
     scheme: 'albarakah-test',
     iconBackground: './assets/android-icon-background-test.png',
   },
   production: {
     name: 'Al Barakah',
     package: 'mu.albarakah.member',
+    apiUrl: 'https://albarakah-app.com',
     scheme: 'albarakah',
     iconBackground: './assets/android-icon-background.png',
   },

@@ -8,20 +8,16 @@ name: Android APK
 # Two apps (docs/environments.md): the test app, "Al Barakah Test"
 # (mu.albarakah.member.test), against the test site on Vercel; and the
 # members' app, "Al Barakah" (mu.albarakah.member), against production on
-# Azure. Each has its own package, so both install on one phone. "demo" is
-# the test app with demo data and no backend at all.
+# Azure. Each has its own package, so both install on one phone, and its
+# own backend address, written in scripts/app-variants.js — nothing to type.
 on:
   workflow_dispatch:
     inputs:
       app:
-        description: 'Which app: test (Vercel test site), production (Azure, for members) or demo (no backend)'
+        description: 'Which app: test (Vercel test site) or production (Azure, for members)'
         default: test
         type: choice
-        options: [test, production, demo]
-      api_url:
-        description: 'Test app only: a backend origin for this run instead of TEST_API_URL'
-        default: ''
-        type: string
+        options: [test, production]
   # A version tag builds both apps and attaches both to the release.
   push:
     tags: ['v*']
@@ -31,7 +27,6 @@ on:
       - '.github/workflows/android-apk.yml'
       - 'scripts/android-signing.*'
       - 'scripts/app-variants.js'
-      - 'scripts/choose-backend.sh'
       - 'scripts/firebase-config.sh'
       - 'app.json'
       - 'app.config.js'
@@ -48,13 +43,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # The one chosen by hand; both on a tag; the demo build for a pull
-        # request, which needs no backend.
-        app: ${{ fromJSON(github.event_name == 'workflow_dispatch' && format('["{0}"]', inputs.app) || github.event_name == 'push' && '["test","production"]' || '["demo"]') }}
+        # The one chosen by hand; both on a tag; the test app for a pull
+        # request.
+        app: ${{ fromJSON(github.event_name == 'workflow_dispatch' && format('["{0}"]', inputs.app) || github.event_name == 'push' && '["test","production"]' || '["test"]') }}
     env:
       APP: ${{ matrix.app }}
       # Which app the native project is generated as (scripts/app-variants.js).
-      APP_VARIANT: ${{ matrix.app == 'production' && 'production' || 'test' }}
+      APP_VARIANT: ${{ matrix.app }}
       # Shown on the app's first screen, so a person holding the phone can
       # tell which build they are actually running.
       EXPO_PUBLIC_BUILD: ${{ github.sha }}
@@ -77,18 +72,17 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # The backend this app talks to: the test site (TEST_API_URL, or the
-      # address typed for this run) for the test app, PRODUCTION_API_URL and
-      # nothing else for the members' app (scripts/choose-backend.sh).
-      - name: Choose the backend
-        env:
-          OVERRIDE: ${{ inputs.api_url || '' }}
-          TEST_URL: ${{ vars.TEST_API_URL }}
-          PRODUCTION_URL: ${{ vars.PRODUCTION_API_URL }}
-        run: bash scripts/choose-backend.sh
-
-      - name: Name the package
-        run: echo "APP_PACKAGE=$(node -p "require('./scripts/app-variants').variant().package")" >> "$GITHUB_ENV"
+      # The package this app installs as and the site it talks to, both from
+      # scripts/app-variants.js: the test site for the test app, production
+      # on Azure for the members' app.
+      - name: Name the app and its backend
+        run: |
+          node -e '
+            const app = require("./scripts/app-variants").variant();
+            require("fs").appendFileSync(process.env.GITHUB_ENV,
+              `APP_PACKAGE=${app.package}\nEXPO_PUBLIC_API_MODE=live\nEXPO_PUBLIC_API_URL=${app.apiUrl}\n`);
+            console.log(`${app.name} (${app.package}) talks to ${app.apiUrl}`);
+          '
 
       # Push notifications need the Firebase configuration naming this
       # app's package (docs/push-notifications.md): its own secret if set
@@ -157,12 +151,12 @@ jobs:
             if [ "${APP}" = "production" ]; then
               echo "## Al Barakah — the members' app"
             else
-              echo "## Al Barakah Test — the test app (${APP})"
+              echo "## Al Barakah Test — the test app"
             fi
             echo
             echo "\`$(ls out 2>/dev/null | head -1)\`"
             echo
-            echo "Installs as \`${APP_PACKAGE:-?}\` · backend: ${EXPO_PUBLIC_API_URL:-none (demo data)}"
+            echo "Installs as \`${APP_PACKAGE:-?}\` · backend: ${EXPO_PUBLIC_API_URL:-?}"
             echo
             if [ "${HAS_FIREBASE}" = "true" ]; then
               echo "Push notifications: **on** (built with the Firebase configuration)."

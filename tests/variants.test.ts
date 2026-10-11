@@ -19,6 +19,16 @@ test('the test app and the members\' app install side by side', () => {
   }
 });
 
+test('each app talks to its own site, written in the table, never the other\'s', () => {
+  assert.equal(VARIANTS.test.apiUrl, 'https://membership-ivory.vercel.app');
+  assert.equal(VARIANTS.production.apiUrl, 'https://albarakah-app.com');
+  for (const v of Object.values(VARIANTS) as { apiUrl: string }[]) {
+    // An https:// origin, no path, no trailing slash — what the app requires.
+    assert.match(v.apiUrl, /^https:\/\/[^/\s]+$/);
+  }
+  assert.notEqual(VARIANTS.test.apiUrl, VARIANTS.production.apiUrl);
+});
+
 test('unset is the test app; only "production" is the members\' app; anything else is refused', () => {
   assert.equal(variantName(undefined), 'test');
   assert.equal(variantName(''), 'test');
