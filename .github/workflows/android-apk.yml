@@ -4,18 +4,25 @@ name: Android APK
 # and no Android Studio: Expo generates the native project on the runner,
 # Gradle builds it, and the APK is attached to the workflow run (and to the
 # GitHub release when a tag is pushed). See docs/install-android.md.
+#
+# Two apps (docs/environments.md): the test app, "Al Barakah Test"
+# (mu.albarakah.member.test), against the test site on Vercel; and the
+# members' app, "Al Barakah" (mu.albarakah.member), against production on
+# Azure. Each has its own package, so both install on one phone. "demo" is
+# the test app with demo data and no backend at all.
 on:
   workflow_dispatch:
     inputs:
-      api_mode:
-        description: 'mock (no backend needed) or live'
-        default: mock
+      app:
+        description: 'Which app: test (Vercel test site), production (Azure, for members) or demo (no backend)'
+        default: test
         type: choice
-        options: [mock, live]
+        options: [test, production, demo]
       api_url:
-        description: 'Backend origin, for live builds'
+        description: 'Test app only: a backend origin for this run instead of TEST_API_URL'
         default: ''
         type: string
+  # A version tag builds both apps and attaches both to the release.
   push:
     tags: ['v*']
   # A pull request that touches the build itself proves it still builds.
@@ -23,7 +30,11 @@ on:
     paths:
       - '.github/workflows/android-apk.yml'
       - 'scripts/android-signing.*'
+      - 'scripts/app-variants.js'
+      - 'scripts/choose-backend.sh'
+      - 'scripts/firebase-config.sh'
       - 'app.json'
+      - 'app.config.js'
       - 'package.json'
       - 'package-lock.json'
 
@@ -32,11 +43,18 @@ permissions:
 
 jobs:
   apk:
-    name: Build APK
+    name: Build APK (${{ matrix.app }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The one chosen by hand; both on a tag; the demo build for a pull
+        # request, which needs no backend.
+        app: ${{ fromJSON(github.event_name == 'workflow_dispatch' && format('["{0}"]', inputs.app) || github.event_name == 'push' && '["test","production"]' || '["demo"]') }}
     env:
-      EXPO_PUBLIC_API_MODE: ${{ inputs.api_mode || 'mock' }}
-      EXPO_PUBLIC_API_URL: ${{ inputs.api_url || '' }}
+      APP: ${{ matrix.app }}
+      # Which app the native project is generated as (scripts/app-variants.js).
+      APP_VARIANT: ${{ matrix.app == 'production' && 'production' || 'test' }}
       # Shown on the app's first screen, so a person holding the phone can
       # tell which build they are actually running.
       EXPO_PUBLIC_BUILD: ${{ github.sha }}
@@ -59,24 +77,28 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # Push notifications need the Firebase project's google-services.json
-      # (docs/push-notifications.md). Without the secret the app still
-      # builds and runs; it just receives no notifications, and the summary
-      # below says so.
-      - name: Add the Firebase configuration, if the secret is set
+      # The backend this app talks to: the test site (TEST_API_URL, or the
+      # address typed for this run) for the test app, PRODUCTION_API_URL and
+      # nothing else for the members' app (scripts/choose-backend.sh).
+      - name: Choose the backend
         env:
-          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
-        run: |
-          if [ -n "$GOOGLE_SERVICES_JSON" ]; then
-            case "$GOOGLE_SERVICES_JSON" in
-              \{*) printf '%s' "$GOOGLE_SERVICES_JSON" > google-services.json ;;
-              *) printf '%s' "$GOOGLE_SERVICES_JSON" | base64 -d > google-services.json ;;
-            esac
-            node -e "JSON.parse(require('fs').readFileSync('google-services.json','utf8'))"
-            echo "HAS_FIREBASE=true" >> "$GITHUB_ENV"
-          else
-            echo "HAS_FIREBASE=false" >> "$GITHUB_ENV"
-          fi
+          OVERRIDE: ${{ inputs.api_url || '' }}
+          TEST_URL: ${{ vars.TEST_API_URL }}
+          PRODUCTION_URL: ${{ vars.PRODUCTION_API_URL }}
+        run: bash scripts/choose-backend.sh
+
+      - name: Name the package
+        run: echo "APP_PACKAGE=$(node -p "require('./scripts/app-variants').variant().package")" >> "$GITHUB_ENV"
+
+      # Push notifications need the Firebase configuration naming this
+      # app's package (docs/push-notifications.md): its own secret if set
+      # (GOOGLE_SERVICES_JSON_TEST / _PRODUCTION), else the shared one.
+      # Without it the app still builds and runs; it just receives no
+      # notifications, and the summary below says so.
+      - name: Add the Firebase configuration, if there is one for this app
+        env:
+          GOOGLE_SERVICES_JSON: ${{ matrix.app == 'production' && (secrets.GOOGLE_SERVICES_JSON_PRODUCTION || secrets.GOOGLE_SERVICES_JSON) || (secrets.GOOGLE_SERVICES_JSON_TEST || secrets.GOOGLE_SERVICES_JSON) }}
+        run: bash scripts/firebase-config.sh
 
       - name: Generate the Android project
         run: npx expo prebuild --platform android --no-install
@@ -105,10 +127,10 @@ jobs:
 
       # Google Play takes an App Bundle, not an APK, and only one signed with
       # the key registered on the Play Console — so the bundle is built only
-      # when the repository's key is set. A throwaway-signed bundle could
-      # never be uploaded.
+      # for the members' app, and only when the repository's key is set. A
+      # throwaway-signed bundle could never be uploaded.
       - name: Build the release App Bundle for Google Play
-        if: env.HAS_KEYSTORE == 'true'
+        if: env.HAS_KEYSTORE == 'true' && matrix.app == 'production'
         working-directory: android
         run: ./gradlew bundleRelease --no-daemon
 
@@ -116,10 +138,10 @@ jobs:
         run: |
           mkdir -p out
           cp android/app/build/outputs/apk/release/app-release.apk \
-            "out/albarakah-member-${EXPO_PUBLIC_API_MODE}-${GITHUB_SHA::7}.apk"
+            "out/albarakah-member-${APP}-${GITHUB_SHA::7}.apk"
           if [ -f android/app/build/outputs/bundle/release/app-release.aab ]; then
             cp android/app/build/outputs/bundle/release/app-release.aab \
-              "out/albarakah-member-${EXPO_PUBLIC_API_MODE}-${GITHUB_SHA::7}.aab"
+              "out/albarakah-member-${APP}-${GITHUB_SHA::7}.aab"
           fi
           ls -la out
 
@@ -132,25 +154,33 @@ jobs:
         if: always()
         run: |
           {
-            echo "## Al Barakah member APK"
+            if [ "${APP}" = "production" ]; then
+              echo "## Al Barakah — the members' app"
+            else
+              echo "## Al Barakah Test — the test app (${APP})"
+            fi
             echo
             echo "\`$(ls out 2>/dev/null | head -1)\`"
+            echo
+            echo "Installs as \`${APP_PACKAGE:-?}\` · backend: ${EXPO_PUBLIC_API_URL:-none (demo data)}"
             echo
             if [ "${HAS_FIREBASE}" = "true" ]; then
               echo "Push notifications: **on** (built with the Firebase configuration)."
             else
-              echo "Push notifications: **off** — set the GOOGLE_SERVICES_JSON secret (docs/push-notifications.md)."
+              echo "Push notifications: **off** — ${FIREBASE_NOTE:-no Firebase configuration} (docs/push-notifications.md)."
             fi
             echo
             if [ -n "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" ]; then
               echo "Signed with the repository's key: **installs over the previous build as an update.**"
-              echo
-              echo "The \`.aab\` beside it (versionCode ${ANDROID_VERSION_CODE}) is what to upload to Google Play."
+              if [ "${APP}" = "production" ]; then
+                echo
+                echo "The \`.aab\` beside it (versionCode ${ANDROID_VERSION_CODE}) is what to upload to Google Play."
+              fi
             else
               echo "> [!IMPORTANT]"
               echo "> Signed with a **throwaway key**, generated for this run alone."
               echo ">"
-              echo "> **Uninstall the Al Barakah app from the phone before installing this.**"
+              echo "> **Uninstall this app from the phone before installing this.**"
               echo "> Android refuses to replace an app with one signed by a different key."
               echo "> Depending on the phone that shows as \"App not installed\" — or the"
               echo "> install appears to do nothing and the old version keeps running, so"
@@ -164,7 +194,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: albarakah-member-apk
+          name: albarakah-member-${{ matrix.app }}
           path: |
             out/*.apk
             out/*.aab

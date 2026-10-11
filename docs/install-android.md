@@ -15,33 +15,33 @@ three work with the code exactly as it is.
 ## 1. Let GitHub build the APK (no computer setup)
 
 The repository has a workflow, `.github/workflows/android-apk.yml`, that
-builds an installable APK on GitHub's servers.
+builds an installable APK on GitHub's servers. It builds either of the two
+apps (`docs/environments.md`): **Al Barakah Test**, for testing against
+the test site on Vercel, or **Al Barakah**, the members' app, against
+production on Azure. They are separate apps — both can be on one phone.
 
 1. Open **this** repository (`membership-MobileAPP`, not `membership`) on
    GitHub → **Actions** → **Android APK** (left-hand list).
-2. Click **Run workflow**. A small form drops down with two fields — this is
-   the only place `api_mode` and `api_url` are set; they are not files you
-   edit and not Vercel settings.
+2. Click **Run workflow**. A small form drops down with two fields:
 
-   | Field      | For a first try | Against the real backend                                         |
-   | ---------- | --------------- | ---------------------------------------------------------------- |
-   | `api_mode` | `mock`          | `live`                                                           |
-   | `api_url`  | leave empty     | the web app's origin, e.g. `https://membership-ivory.vercel.app` |
+   | Field     | Choose                                                                                                                                                                                                                                |
+   | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+   | `app`     | `test` — Al Barakah Test, against the test site (`TEST_API_URL`). `production` — Al Barakah, the members' app, against production on Azure (`PRODUCTION_API_URL`). `demo` — the test app with its own demo data and no server at all. |
+   | `api_url` | Leave empty. For the test app only, an address typed here replaces `TEST_API_URL` for this one run. The members' app is only ever built against `PRODUCTION_API_URL`.                                                                |
 
-   In `mock` mode the app runs against its own built-in demo backend and
-   needs no server at all, which is the quickest way to see the screens. In
-   `live` mode it talks to the origin you give — no trailing slash, and the
-   value is baked into the APK at build time, so pointing it somewhere else
-   later means building again.
+   The address is baked into the APK at build time, so pointing an app
+   somewhere else later means building again. `docs/environments.md` says
+   where the two addresses are set.
 
    Then press the green **Run workflow** button in the form.
 
 3. Wait for the run to finish (about 10 minutes the first time).
 4. Open the finished run, scroll to **Artifacts**, and download
-   `albarakah-member-apk`. It is a zip containing one `.apk`.
+   `albarakah-member-test` (or `-production`, `-demo`). It is a zip
+   containing one `.apk`.
 5. Get the `.apk` onto the phone: email it to yourself, put it in Google
    Drive, or plug the phone in and copy it to Downloads.
-6. **If Al Barakah is already on the phone, uninstall it first** — unless
+6. **If the same app is already on the phone, uninstall it first** — unless
    you have set the signing-key secrets below. Each build is otherwise
    signed with its own throwaway key, and Android will not replace an app
    with one signed by a different key. On some phones that says "App not
@@ -54,8 +54,9 @@ builds an installable APK on GitHub's servers.
 7. On the phone, open the file. Android will ask to **allow installs from
    this source** the first time (Settings → Apps → Special access → Install
    unknown apps, or just follow the prompt). Allow it, then **Install**.
-8. Open **Al Barakah**. In mock mode: "I'm already a member" with NIC
-   `P1503881234567` and AB Number `AB0001`, code `123456`. In live mode,
+8. Open **Al Barakah Test** (orange icon, "TEST" on every screen) or
+   **Al Barakah**. In the demo build: "I'm already a member" with NIC
+   `P1503881234567` and AB Number `AB0001`, code `123456`. Otherwise,
    check the version on the sign-in screen matches the build you just
    installed — if it does not, the install did not replace the old app.
 

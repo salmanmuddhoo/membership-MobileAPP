@@ -1,7 +1,9 @@
 // The membership card: the physical card every member carries, on the
 // phone — name, Member No. and the year they joined, in plain bold
-// lettering (officer direction: no raised or 3D effect, no barcode) — and
-// beneath it the partner outlets where it earns a discount, by category.
+// lettering (officer direction: no raised or 3D effect, no barcode), with
+// the gold contact chip and contactless mark a real card has — and beneath
+// it the partner outlets where it earns a discount, by category.
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import React, { useState } from 'react';
 import { Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { ApiError, type Outlet } from '@/api';
@@ -49,6 +51,10 @@ export default function MembershipCard() {
             <Text style={styles.brandSub}>Multi-purpose Co-operative Society Ltd</Text>
           </View>
         </View>
+        <View style={styles.contactRow}>
+          <ContactChip />
+          <MaterialCommunityIcons name="contactless-payment" size={26} color="rgba(255,255,255,0.75)" />
+        </View>
         <View style={{ flex: 1 }} />
         <Text style={styles.name} numberOfLines={1} adjustsFontSizeToFit>
           {name}
@@ -89,6 +95,22 @@ export default function MembershipCard() {
         <OutletCard key={o.id} outlet={o} />
       ))}
     </ScrollView>
+  );
+}
+
+// The gold contact plate of a bank card, drawn rather than pictured: a
+// gold face, the light catching its upper half, and the lines between its
+// contacts.
+function ContactChip() {
+  return (
+    <View style={styles.contact} accessible={false}>
+      <View style={styles.contactShine} />
+      <View style={[styles.contactLineH, { top: '33%' }]} />
+      <View style={[styles.contactLineH, { top: '66%' }]} />
+      <View style={[styles.contactLineV, { left: '30%' }]} />
+      <View style={[styles.contactLineV, { left: '70%' }]} />
+      <View style={styles.contactCentre} />
+    </View>
   );
 }
 
@@ -175,6 +197,37 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(200,162,76,0.18)',
   },
   cardHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  contactRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginTop: spacing.md },
+  contact: {
+    width: 46,
+    height: 34,
+    borderRadius: 7,
+    backgroundColor: '#D6B25E',
+    borderWidth: 1,
+    borderColor: 'rgba(92, 64, 14, 0.6)',
+    overflow: 'hidden',
+  },
+  contactShine: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    height: '45%',
+    backgroundColor: 'rgba(255, 244, 205, 0.45)',
+  },
+  contactLineH: { position: 'absolute', left: 0, right: 0, height: 1, backgroundColor: 'rgba(92, 64, 14, 0.5)' },
+  contactLineV: { position: 'absolute', top: 0, bottom: 0, width: 1, backgroundColor: 'rgba(92, 64, 14, 0.5)' },
+  contactCentre: {
+    position: 'absolute',
+    left: '30%',
+    top: '33%',
+    width: '40%',
+    height: '34%',
+    borderRadius: 3,
+    borderWidth: 1,
+    borderColor: 'rgba(92, 64, 14, 0.5)',
+    backgroundColor: '#E2C273',
+  },
   brand: { color: '#fff', fontSize: 18, fontWeight: '800' },
   brandSub: { color: 'rgba(255,255,255,0.75)', fontSize: 11 },
   name: { color: '#fff', fontSize: 18, fontWeight: '800', letterSpacing: 2, marginBottom: spacing.md },

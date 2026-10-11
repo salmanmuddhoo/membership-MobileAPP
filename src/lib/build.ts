@@ -22,11 +22,25 @@ export function shortRef(sha: string | undefined): string {
 
 export const BUILD_REF = shortRef(process.env.EXPO_PUBLIC_BUILD);
 
-/** `0.1.0 · live · 6efd424`, or `0.1.0 · mock · dev` from a local run. */
+// Which of the two apps this is (scripts/app-variants.js): the test app,
+// against the test site, or the members' app, against production. Anything
+// but an explicit "production" is the test app, as the build has it.
+export type AppVariant = 'test' | 'production';
+
+export function appVariantOf(value: unknown): AppVariant {
+  return value === 'production' ? 'production' : 'test';
+}
+
+/**
+ * `0.1.0 · live · 6efd424`, or `0.1.0 · mock · dev` from a local run; the
+ * test app says so first, `Test app · 0.1.0 · live · 6efd424`.
+ */
 export function formatBuild(
   version: string,
   mode: string,
-  ref: string = BUILD_REF
+  ref: string = BUILD_REF,
+  variant: AppVariant = 'production'
 ): string {
-  return [version || '0.0.0', mode, ref || 'dev'].join(' · ');
+  const parts = [version || '0.0.0', mode, ref || 'dev'];
+  return (variant === 'test' ? ['Test app', ...parts] : parts).join(' · ');
 }
