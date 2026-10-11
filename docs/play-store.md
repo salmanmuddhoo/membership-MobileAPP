@@ -32,8 +32,10 @@ this order, a first review usually passes.
   build is always a later version. Bump the human-readable `version` in
   `app.json` when the Society wants a new version number shown.
 - Build the **members' app**: run the workflow with `app: production`. It
-  talks to production on Azure (`https://albarakah-app.com`) and installs
-  as `mu.albarakah.member`; the test app never goes to the store.
+  is built from the `production` branch, talks to production on Azure
+  (`https://albarakah-app.com`) and installs as `mu.albarakah.member`; the
+  test app never goes to the store. Promote `main` to `production` first,
+  after the backend (`docs/environments.md`, "Promoting to production").
 
 ## The forms
 

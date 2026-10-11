@@ -10,6 +10,12 @@ name: Android APK
 # members' app, "Al Barakah" (mu.albarakah.member), against production on
 # Azure. Each has its own package, so both install on one phone, and its
 # own backend address, written in scripts/app-variants.js — nothing to type.
+#
+# Which code each is built from mirrors the backend's two branches: the
+# test app from the branch the run was started from (main, unless another
+# was picked), the members' app from the production branch and nothing
+# else — promoted from main once tested, together with the backend's own
+# production (docs/environments.md, "Promoting to production").
 on:
   workflow_dispatch:
     inputs:
@@ -50,14 +56,34 @@ jobs:
       APP: ${{ matrix.app }}
       # Which app the native project is generated as (scripts/app-variants.js).
       APP_VARIANT: ${{ matrix.app }}
-      # Shown on the app's first screen, so a person holding the phone can
-      # tell which build they are actually running.
-      EXPO_PUBLIC_BUILD: ${{ github.sha }}
       # Google Play needs every upload to carry a higher versionCode than
       # the last (app.config.js); the run number only ever goes up.
       ANDROID_VERSION_CODE: ${{ github.run_number }}
     steps:
+      # The members' app is the production branch's code, whatever branch
+      # the run was started from; a tag builds what it names, and is
+      # checked below to sit on the production branch.
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.app == 'production' && github.event_name == 'workflow_dispatch' && 'production' || '' }}
+          fetch-depth: 0
+
+      - name: Note the commit being built
+        run: |
+          echo "BUILT_REF=${{ matrix.app == 'production' && github.event_name == 'workflow_dispatch' && 'production' || github.ref_name }}" >> "$GITHUB_ENV"
+          # Shown on the app's first screen and in the APK's name, so a
+          # person holding the phone can tell which build they are running.
+          echo "EXPO_PUBLIC_BUILD=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          echo "BUILT_SHA=$(git rev-parse --short=7 HEAD)" >> "$GITHUB_ENV"
+
+      - name: The members' app comes from the production branch
+        if: matrix.app == 'production'
+        run: |
+          git fetch --no-tags origin production
+          if ! git merge-base --is-ancestor HEAD FETCH_HEAD; then
+            echo "::error::The members' app is built from the production branch only. $(git rev-parse --short HEAD) is not on it: promote main to production first (docs/environments.md), and tag a commit on production."
+            exit 1
+          fi
 
       - uses: actions/setup-node@v4
         with:
@@ -132,10 +158,10 @@ jobs:
         run: |
           mkdir -p out
           cp android/app/build/outputs/apk/release/app-release.apk \
-            "out/albarakah-member-${APP}-${GITHUB_SHA::7}.apk"
+            "out/albarakah-member-${APP}-${BUILT_SHA}.apk"
           if [ -f android/app/build/outputs/bundle/release/app-release.aab ]; then
             cp android/app/build/outputs/bundle/release/app-release.aab \
-              "out/albarakah-member-${APP}-${GITHUB_SHA::7}.aab"
+              "out/albarakah-member-${APP}-${BUILT_SHA}.aab"
           fi
           ls -la out
 
@@ -157,6 +183,8 @@ jobs:
             echo "\`$(ls out 2>/dev/null | head -1)\`"
             echo
             echo "Installs as \`${APP_PACKAGE:-?}\` · backend: ${EXPO_PUBLIC_API_URL:-?}"
+            echo
+            echo "Built from \`${BUILT_REF:-?}\` at \`${BUILT_SHA:-?}\`."
             echo
             if [ "${HAS_FIREBASE}" = "true" ]; then
               echo "Push notifications: **on** (built with the Firebase configuration)."

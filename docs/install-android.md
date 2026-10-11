@@ -30,7 +30,9 @@ production on Azure. They are separate apps — both can be on one phone.
 
    Nothing to type: each app's address is part of the code
    (`scripts/app-variants.js`, `docs/environments.md`) and baked into the
-   APK at build time.
+   APK at build time. The members' app is always built from the
+   `production` branch; the test app from the branch picked under "Use
+   workflow from" (`main`).
 
    Then press the green **Run workflow** button in the form.
 
