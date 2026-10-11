@@ -7,6 +7,7 @@ import Constants from 'expo-constants';
 import { formatBuild } from '@/lib/build';
 import { useRootedDevice } from '@/lib/device';
 import { Banner, Button } from '@/ui';
+import { APP_VARIANT, TestBadge } from '@/ui/TestBadge';
 import { AnimatedLogo, FadeIn } from '@/ui/Logo';
 import { colors, spacing } from '@/ui/theme';
 
@@ -23,6 +24,9 @@ export default function Welcome() {
         <FadeIn delay={250}>
           <Text style={styles.title}>Al Barakah</Text>
           <Text style={styles.subtitle}>Multi-purpose Co-operative Society Ltd</Text>
+          <View style={styles.badge}>
+            <TestBadge />
+          </View>
         </FadeIn>
       </View>
       <FadeIn delay={400}>
@@ -47,7 +51,7 @@ export default function Welcome() {
           {/* Which build this is. Quiet, and the first thing to check when a
               new APK seems not to have changed anything. */}
           <Text style={styles.build}>
-            {formatBuild(Constants.expoConfig?.version ?? '', API_MODE)}
+            {formatBuild(Constants.expoConfig?.version ?? '', API_MODE, undefined, APP_VARIANT)}
           </Text>
         </View>
       </FadeIn>
@@ -60,6 +64,7 @@ const styles = StyleSheet.create({
   hero: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl, gap: spacing.xl },
   title: { fontSize: 34, fontWeight: '700', color: '#fff', textAlign: 'center' },
   subtitle: { fontSize: 15, color: 'rgba(255,255,255,0.8)', marginTop: spacing.xs, textAlign: 'center' },
+  badge: { marginTop: spacing.md },
   actions: {
     backgroundColor: colors.bg,
     borderTopLeftRadius: 28,

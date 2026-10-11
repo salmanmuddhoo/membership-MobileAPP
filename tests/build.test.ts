@@ -1,7 +1,7 @@
 // Which build is running, said where someone testing can see it.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { shortRef, formatBuild } from '../src/lib/build.ts';
+import { appVariantOf, formatBuild, shortRef } from '../src/lib/build.ts';
 
 test('the commit is shortened to what the APK filename carries', () => {
   // The workflow names the artifact albarakah-member-<mode>-<sha:7>.apk, so
@@ -21,4 +21,14 @@ test('a local run says so rather than pretending to be a build', () => {
   assert.equal(formatBuild('0.1.0', 'mock', ''), '0.1.0 · mock · dev');
   // A version Expo could not read is not passed off as a real one.
   assert.equal(formatBuild('', 'mock', ''), '0.0.0 · mock · dev');
+});
+
+test('the test app says so first; the members\' app does not', () => {
+  assert.equal(formatBuild('0.1.0', 'live', '6efd424', 'test'), 'Test app · 0.1.0 · live · 6efd424');
+  assert.equal(formatBuild('0.1.0', 'live', '6efd424', 'production'), '0.1.0 · live · 6efd424');
+  // Only an explicit "production" is the members' app.
+  assert.equal(appVariantOf('production'), 'production');
+  assert.equal(appVariantOf('test'), 'test');
+  assert.equal(appVariantOf(undefined), 'test');
+  assert.equal(appVariantOf('prod'), 'test');
 });

@@ -5,6 +5,7 @@ import { useAuth } from '@/auth/AuthContext';
 import { useMe } from '@/hooks/queries';
 import { Loading } from '@/ui';
 import { TabIcon } from '@/ui/TabIcon';
+import { TestBadge } from '@/ui/TestBadge';
 import { colors } from '@/ui/theme';
 
 export default function MemberLayout() {
@@ -38,6 +39,8 @@ export default function MemberLayout() {
         headerStyle: { backgroundColor: colors.primary },
         headerTintColor: '#fff',
         headerTitleStyle: { fontWeight: '600' },
+        // The test app says so on every screen (docs/environments.md).
+        headerRight: () => <TestBadge />,
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.muted,
         tabBarStyle: { height: 58 + insets.bottom, paddingTop: 6, paddingBottom: insets.bottom + 4 },

@@ -35,25 +35,40 @@ a session.
 
 ## Setting it up
 
-Push needs one Firebase project, shared by the app and the backend. Free;
-no Expo account is involved.
+Push needs a Firebase project, shared by the app and the backend. Free;
+no Expo account is involved. There are two apps (`docs/environments.md`),
+each its own package, and Firebase must know both:
+`mu.albarakah.member.test` (Al Barakah Test, the test site on Vercel) and
+`mu.albarakah.member` (Al Barakah, production on Azure).
 
 1. [console.firebase.google.com](https://console.firebase.google.com) →
    **Add project** (e.g. "Al Barakah member app"). Analytics can be off.
-2. In the project, **Add app → Android**, package name
-   `mu.albarakah.member` (as in `app.json`). Download
-   **google-services.json**.
+2. In the project, **Add app → Android** twice: package name
+   `mu.albarakah.member`, then again with `mu.albarakah.member.test`.
+   Download **google-services.json** after adding the second: one file
+   then lists both apps.
 3. In this repository: GitHub → Settings → Secrets and variables →
-   Actions → new secret **`GOOGLE_SERVICES_JSON`** with the file's
-   contents (pasted as is, or base64-encoded). The next build picks it
-   up: the workflow writes the file before `expo prebuild`, and the run
-   summary says "Push notifications: on". The file is never committed
+   Actions → secret **`GOOGLE_SERVICES_JSON`** with the file's contents
+   (pasted as is, or base64-encoded). The next build picks it up: the
+   workflow writes the file before `expo prebuild` if it names that
+   build's package (`scripts/firebase-config.sh`), and the run summary
+   says "Push notifications: on". The file is never committed
    (`.gitignore`). For a local build, put it at the repository root.
-4. On the backend: **Project settings → Service accounts → Generate new
-   private key**, and set `NOTIFY_PUSH_DELIVERY=fcm` with
-   `NOTIFY_PUSH_SERVICE_ACCOUNT=<the key file as one line of JSON, or
-   base64>` on the web application's environment
-   (`docs/notifications.md`, "Push", in that repository).
+4. On the backend, both environments: **Project settings → Service
+   accounts → Generate new private key**, and set
+   `NOTIFY_PUSH_DELIVERY=fcm` with `NOTIFY_PUSH_SERVICE_ACCOUNT=<the key
+   file as one line of JSON, or base64>` — on the Vercel **test**
+   environment and on the **Azure** App Service alike
+   (`docs/notifications.md`, "Push, to the member app", and
+   `docs/deployment-azure.md` in that repository). Each backend only ever
+   writes to the phones signed in to it, so one key serves both.
+
+**Keeping test and production fully apart** is also possible: a second
+Firebase project for the test app alone. Then set
+**`GOOGLE_SERVICES_JSON_TEST`** and **`GOOGLE_SERVICES_JSON_PRODUCTION`**
+(each project's own file) instead of the shared secret — each build takes
+its own, falling back to `GOOGLE_SERVICES_JSON` — and give Vercel the
+test project's service-account key and Azure the production one's.
 
 Then, on the web application, **Notifications → Send test** to a push
 wording with a member's AB Number sends to every phone that member has

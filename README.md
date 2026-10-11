@@ -37,6 +37,11 @@ To point at a real backend, copy `.env.example` to `.env` and set
 `EXPO_PUBLIC_API_URL` (the web application's origin, `https://` — a live
 build refuses anything else) and `EXPO_PUBLIC_API_MODE=live`.
 
+Two apps are built from this code: **Al Barakah Test**, against the test
+site on Vercel, and **Al Barakah**, the members' app, against production on
+Azure (`APP_VARIANT`; unset is the test app). Setting them up and building
+each: [`docs/environments.md`](docs/environments.md).
+
 Security measures and what is still open: [`docs/security.md`](docs/security.md).
 Getting on to Google Play: [`docs/play-store.md`](docs/play-store.md), with
 the privacy policy to publish in [`docs/privacy-policy.md`](docs/privacy-policy.md).
