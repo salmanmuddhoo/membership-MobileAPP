@@ -42,9 +42,6 @@ export default function Review() {
       await submit.mutateAsync();
     } catch (e) {
       if (e instanceof ApiError) {
-        // userMessage, not message: it carries the correlation id, which is
-        // the whole of what makes a failure here traceable to its request
-        // in the server log.
         setProblem(e.userMessage);
         if (e.code === 'validation_failed') setServerDetails(e.details);
       } else {
