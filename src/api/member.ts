@@ -21,6 +21,7 @@ import type {
   Promotion,
   Reference,
   Session,
+  SignUpRequest,
   TransferInput,
   UploadTicket,
   WithdrawalInput,
@@ -37,15 +38,16 @@ export function memberApi(transport: Transport) {
     reference: () => call<Reference>('/reference'),
 
     // Existing member: NIC + AB Number identify them; the code goes to the
-    // mobile on their record, whatever they typed.
+    // mobile or the email on their record, as they choose.
     linkMember: (input: LinkMemberRequest) =>
       call<OtpChallenge>('/auth/link-member', { method: 'POST', body: input }),
 
-    // New applicant: no AB Number yet. The code goes to the number they
-    // give, which becomes the verified mobile on their application. This
-    // never yields member access, whoever the number belongs to.
-    startSignUp: (mobile: string) =>
-      call<OtpChallenge>('/auth/sign-up', { method: 'POST', body: { mobile } }),
+    // New applicant: no AB Number yet. The code goes to the WhatsApp number
+    // or the email address they give, which becomes the verified one on
+    // their application. This never yields member access, whoever it
+    // belongs to.
+    startSignUp: (input: SignUpRequest) =>
+      call<OtpChallenge>('/auth/sign-up', { method: 'POST', body: input }),
 
     // Resend the code for a challenge already issued, either kind.
     resendOtp: (challengeId: string) =>

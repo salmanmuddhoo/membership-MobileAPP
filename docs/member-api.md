@@ -23,16 +23,18 @@ app ends up letting a card number open an account:
 | Concern | What it is | Where it happens |
 | --- | --- | --- |
 | **Identification / linking** | NIC + AB Number name exactly one active member | `POST /auth/link-member` |
-| **Verification** | A one-time code proves the person holds the mobile on that member's record | `POST /auth/verify-otp` |
+| **Verification** | A one-time code proves the person holds the mobile or the email on that member's record | `POST /auth/verify-otp` |
 | **Authentication** | The session that results — access token + refresh token held in the device keychain — is what every later request presents | `Authorization: Bearer` on everything else; `POST /auth/refresh` |
 | **memberId** | The internal link from that session to the `member` row | `member_session.member_id`, server-side only; never sent to the phone |
 
-**NIC + AB Number alone open nothing.** They select whose registered mobile
-the code goes to. The person typing them does not get to choose that
-number, cannot see it unmasked, and cannot change it from the app — a
-member whose number has changed goes to a branch with their ID. So a lost
+**NIC + AB Number alone open nothing.** They select whose mobile or email
+on record the code goes to. The person chooses only the channel — WhatsApp
+to the mobile on record, or email to the address on record — never the
+number or address, sees it only masked (`+230 5*** *428`,
+`s***o@gmail.com`), and cannot change either from the app: a member whose
+number or email has changed goes to a branch with their ID. So a lost
 card, a NIC seen on a form, or both together, get an attacker exactly as
-far as the SMS they will not receive.
+far as the WhatsApp message or email they will not receive.
 
 **AB Number.** The Member No. printed on the card, `AB` followed by digits
 (`member.member_no`, allocated by `next_member_number()`). The business
@@ -45,7 +47,7 @@ the shares account has its own `account_no` — matching is on
 
 | Step | Endpoint | Rules |
 | --- | --- | --- |
-| 1 | `POST /auth/link-member` `{ nic, abNumber }` | Exact match, both together, against the applicant party's `nic` on the member's founding application (or the imported record for M7 legacy members) and `member.member_no`; members entitled to the app only. 422 if either is malformed (`details.nic`, `details.abNumber`). **404 if the pair does not name one such member**, with a message telling the person to contact the Al Barakah office on +230 5944 9797 — one message for "no such NIC", "no such AB Number" and "not together"; a member with no mobile on record gets the same instruction worded for that. The app shows the message, offers to call, and goes no further (officer direction, October 2026). On a hit, returns an `OtpChallenge` with `purpose: 'link_member'` and no number. Audit: `member.link.requested`, with the NIC hashed, never stored plain in the log. |
+| 1 | `POST /auth/link-member` `{ nic, abNumber, channel }` | Exact match, both together, against the applicant party's `nic` on the member's founding application (or the imported record for M7 legacy members) and `member.member_no`; members entitled to the app only. `channel` is `phone` (WhatsApp; the default) or `email`. 422 if anything is malformed (`details.nic`, `details.abNumber`, `details.channel`). **404 if the pair does not name one such member**, with a message telling the person to contact the Al Barakah office on +230 5944 9797 — one message for "no such NIC", "no such AB Number" and "not together"; a member with no mobile, or no email, on record for the channel chosen gets the same instruction worded for that, pointing at the other channel. The app shows the message, offers to call, and goes no further (officer direction, October 2026). On a hit, returns an `OtpChallenge` with `purpose: 'link_member'`, `sentTo` the masked number or address on record and `sentBy` `whatsapp` (or `sms`) or `email`. Audit: `member.link.requested`, with the NIC hashed, never stored plain in the log. |
 | 2 | `POST /auth/verify-otp` `{ challengeId, code }` | Five wrong codes burn the challenge (404 from then on); expiry five minutes. On success: a `member_session` row with `member_id` set, and a `Session` whose `identity.kind` is `member`. Audit: `member.link.completed`. |
 | 3 | `POST /auth/refresh` `{ refreshToken }` | New pair; the old refresh token is dead the moment it is used. Refresh tokens live 90 days from last use, so a phone that opens the app now and then never re-links; one left in a drawer for a season does. |
 | 4 | `POST /auth/logout` `{ refreshToken }` | Revokes the session. The device must link again — NIC + AB Number + code — to get back in. A branch can do the same for a member who lost their phone by revoking every `member_session` for that `member_id`. |
@@ -66,7 +68,7 @@ Someone applying has no AB Number, and must not need one.
 
 | Step | Endpoint | Rules |
 | --- | --- | --- |
-| 1 | `POST /auth/sign-up` `{ mobile }` | Any form `toInternational` accepts. **Always 200 for a well-formed number**, whether or not it is on some record — the response must not reveal who is a member. Returns an `OtpChallenge` with `purpose: 'sign_up'`. |
+| 1 | `POST /auth/sign-up` `{ channel: 'phone', mobile }` or `{ channel: 'email', email }` | The applicant chooses WhatsApp or email and types the number (any form `toInternational` accepts) or the address. **Always 200 for a well-formed one**, whether or not it is on some record — the response must not reveal who is a member. Returns an `OtpChallenge` with `purpose: 'sign_up'`. |
 | 2 | `POST /auth/verify-otp` | On success a `member_session` with `member_id` **null** and `identity.kind: 'applicant'`. That session can start, save and submit an application and read its own applications — nothing else. **It never resolves to a member record, even when the verified mobile is the one on a member's file**: member access comes only through linking. That is what makes step 1 safe to answer 200 for everyone. |
 
 The verified mobile becomes the applicant's `mobile` on the application,
@@ -252,8 +254,9 @@ is a small addition to the web application and outside this repository.
 - `link-member`: 5 per NIC and per AB Number per hour, 20 per IP per hour,
   counted whether or not the pair matched. This is the endpoint an
   attacker with a stolen card would hit.
-- `sign-up`: 3 per number per 10 minutes, 20 per IP per hour, regardless
-  of whether the number is known. SMS costs money and the endpoint is public.
+- `sign-up`: 3 per number or address per 10 minutes, 20 per IP per hour,
+  regardless of whether it is known. A WhatsApp message costs money and the
+  endpoint is public.
 - `verify-otp`: 5 attempts per challenge, then it is dead.
 - Everything else inherits the existing fixed-window limiter, keyed on the
   session rather than the staff user.

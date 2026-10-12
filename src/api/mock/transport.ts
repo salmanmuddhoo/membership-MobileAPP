@@ -20,11 +20,13 @@ import type {
   Application,
   ApplicationDocument,
   ChangeRequest,
+  CodeChannel,
   Dependent,
   FiledDocument,
   MemberProfile,
   MemberRequest,
   MembershipType,
+  OtpChallenge,
   Outlet,
   PartyValues,
   Promotion,
@@ -51,9 +53,12 @@ interface Person {
 
 interface Challenge {
   id: string;
-  // The number the code went to. For link_member this is the member's
-  // registered mobile; the person never typed it.
+  // Where the code went, the person's choice: their phone by WhatsApp, or
+  // email. For link_member it is what the member's record holds; the
+  // person never typed it.
+  channel: CodeChannel;
   mobile: string;
+  email: string | null;
   purpose: 'link_member' | 'sign_up';
   // Set for link_member: the record NIC + AB Number identified.
   personId: string | null;
@@ -69,7 +74,29 @@ interface Upload {
 }
 
 const iso = (d: Date) => d.toISOString();
-const masked = (mobile: string) => `${mobile.slice(0, 5)}xxx${mobile.slice(-3)}`;
+// As the backend masks them: +230 5*** *428, s***o@gmail.com.
+const masked = (mobile: string) => {
+  const mu = /^\+230(\d)(\d{4})(\d{3})$/.exec(mobile);
+  return mu ? `+230 ${mu[1]}*** *${mu[3]}` : `${mobile.slice(0, 4)} ${'*'.repeat(Math.max(mobile.length - 7, 0))}${mobile.slice(-3)}`;
+};
+const maskedEmail = (email: string) => {
+  const at = email.lastIndexOf('@');
+  const local = email.slice(0, at);
+  return `${local[0]}***${local.length > 2 ? local.slice(-1) : ''}${email.slice(at)}`;
+};
+const EMAIL = /^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/;
+// The phone channel arrives by WhatsApp in the Society's setup.
+const sentBy = (challenge: Challenge) => (challenge.channel === 'email' ? 'email' : 'whatsapp') as OtpChallenge['sentBy'];
+const sentTo = (challenge: Challenge) => (challenge.channel === 'email' ? maskedEmail(challenge.email ?? '') : masked(challenge.mobile));
+function proofOf(challenge: Challenge) {
+  return challenge.channel === 'email' ? { mobile: null, email: challenge.email } : { mobile: challenge.mobile, email: null };
+}
+// Phone unless email is asked for, as the backend reads it; null for
+// anything else.
+function channelOf(raw: unknown): CodeChannel | null {
+  if (raw === undefined || raw === null || raw === '' || raw === 'phone') return 'phone';
+  return raw === 'email' ? 'email' : null;
+}
 const daysAgo = (n: number) => iso(new Date(Date.now() - n * 86_400_000));
 
 function seedMember(): Person {
@@ -527,11 +554,17 @@ export function createMockTransport(): Transport {
   // applicant identified only by the verified mobile, even if that same
   // number is on some member's record. Member access comes only through
   // linking.
-  function session(person: Person, asApplicant = false): Session {
+  // What the code proved, the mobile or the email, carried across refreshes
+  // as the backend's session row carries it.
+  type Proof = { mobile: string | null; email: string | null };
+  const proofs = new Map<string, Proof>();
+
+  function session(person: Person, asApplicant = false, proof: Proof = { mobile: person.mobile, email: null }): Session {
     const accessToken = nextId('access');
     const refreshToken = nextId('refresh');
     sessions.set(accessToken, asApplicant ? `applicant:${person.mobile}` : person.mobile);
     refreshTokens.set(refreshToken, asApplicant ? `applicant:${person.mobile}` : person.mobile);
+    proofs.set(refreshToken, proof);
     const applicant = asApplicant || person.profile.kind === 'applicant';
     return {
       accessToken,
@@ -541,7 +574,8 @@ export function createMockTransport(): Transport {
         kind: applicant ? 'applicant' : person.profile.kind,
         memberNo: applicant ? null : person.profile.memberNo,
         displayName: applicant ? 'Applicant' : person.displayName,
-        mobile: person.mobile,
+        mobile: proof.mobile,
+        email: proof.email,
         linkedAt: iso(new Date()),
       },
     };
@@ -794,10 +828,12 @@ export function createMockTransport(): Transport {
       handle: (_, body) => {
         const nic = String(body?.nic ?? '').trim().toUpperCase();
         const abNumber = String(body?.abNumber ?? '').trim().toUpperCase().replace(/\s+/g, '');
+        const channel = channelOf(body?.channel);
         const details: Record<string, string[]> = {};
+        if (!channel) details.channel = ['Choose WhatsApp or email.'];
         if (!/^[A-Z]\d{12}[A-Z0-9]$/.test(nic)) details.nic = ['Enter the NIC exactly as on the card, e.g. A0101801234567.'];
         if (!/^AB\d{4,}$/.test(abNumber)) details.abNumber = ['Enter the AB Number as on your card, e.g. AB0001.'];
-        if (Object.keys(details).length > 0) {
+        if (Object.keys(details).length > 0 || !channel) {
           throw fail('validation_failed', 'Check the details.', details);
         }
         // The only lookup the mobile app gets: an exact pair, active members
@@ -815,33 +851,55 @@ export function createMockTransport(): Transport {
             'These details do not match our records. Please contact the Al Barakah office on +230 5944 9797.'
           );
         }
+        // Only ever to what the record holds, never to one typed here.
+        const onRecord = person.profile.parties.find(p => p.subject === 'applicant')?.values.email?.trim().toLowerCase() ?? '';
+        if (channel === 'email' && !EMAIL.test(onRecord)) {
+          throw fail(
+            'not_found',
+            'We have no email address on record for you, so a code cannot be sent by email. Choose WhatsApp, or contact the Al Barakah office on +230 5944 9797.'
+          );
+        }
         const id = nextId('otp');
-        challenges.set(id, {
+        const challenge: Challenge = {
           id,
-          mobile: person?.mobile ?? '',
+          channel,
+          mobile: channel === 'phone' ? person.mobile : '',
+          email: channel === 'email' ? onRecord : null,
           purpose: 'link_member',
-          personId: person?.id ?? null,
+          personId: person.id,
           attempts: 0,
           createdAt: Date.now(),
-        });
-        return { challengeId: id, purpose: 'link_member', sentTo: null, expiresInSeconds: 300 };
+        };
+        challenges.set(id, challenge);
+        return { challengeId: id, purpose: 'link_member', sentTo: sentTo(challenge), sentBy: sentBy(challenge), expiresInSeconds: 300 };
       },
     },
     {
       method: 'POST',
       pattern: /^\/api\/v1\/member\/auth\/sign-up$/,
       handle: (_, body) => {
-        let mobile: string;
-        try {
-          mobile = toInternational(String(body?.mobile ?? ''));
-        } catch (e) {
-          throw fail('validation_failed', 'Check the mobile number.', { mobile: [(e as Error).message] });
+        const channel = channelOf(body?.channel);
+        if (!channel) throw fail('validation_failed', 'Check the details.', { channel: ['Choose WhatsApp or email.'] });
+        let mobile = '';
+        let email: string | null = null;
+        if (channel === 'email') {
+          email = String(body?.email ?? '').trim().toLowerCase();
+          if (!EMAIL.test(email)) {
+            throw fail('validation_failed', 'Check the email address.', { email: ['Enter an email address, e.g. name@example.com.'] });
+          }
+        } else {
+          try {
+            mobile = toInternational(String(body?.mobile ?? ''));
+          } catch (e) {
+            throw fail('validation_failed', 'Check the mobile number.', { mobile: [(e as Error).message] });
+          }
         }
-        // Always issued, whether or not the number is on some record: this
-        // path only ever produces an applicant session.
+        // Always issued, whether or not the number or address is on some
+        // record: this path only ever produces an applicant session.
         const id = nextId('otp');
-        challenges.set(id, { id, mobile, purpose: 'sign_up', personId: null, attempts: 0, createdAt: Date.now() });
-        return { challengeId: id, purpose: 'sign_up', sentTo: masked(mobile), expiresInSeconds: 300 };
+        const challenge: Challenge = { id, channel, mobile, email, purpose: 'sign_up', personId: null, attempts: 0, createdAt: Date.now() };
+        challenges.set(id, challenge);
+        return { challengeId: id, purpose: 'sign_up', sentTo: sentTo(challenge), sentBy: sentBy(challenge), expiresInSeconds: 300 };
       },
     },
     {
@@ -854,8 +912,9 @@ export function createMockTransport(): Transport {
         if (wait > 0) throw fail('rate_limited', `Wait ${wait} seconds before requesting another code.`);
         challenges.delete(previous.id);
         const id = nextId('otp');
-        challenges.set(id, { ...previous, id, attempts: 0, createdAt: Date.now() });
-        return { challengeId: id, purpose: previous.purpose, sentTo: masked(previous.mobile), expiresInSeconds: 300 };
+        const next = { ...previous, id, attempts: 0, createdAt: Date.now() };
+        challenges.set(id, next);
+        return { challengeId: id, purpose: previous.purpose, sentTo: sentTo(next), sentBy: sentBy(next), expiresInSeconds: 300 };
       },
     },
     {
@@ -883,9 +942,12 @@ export function createMockTransport(): Transport {
           const person = [...people.values()].find(p => p.id === challenge.personId);
           if (!person) throw fail('not_found', 'That member record is no longer available.');
           // This is the link: the device's identity is now the member's.
-          return session(person);
+          return session(person, false, proofOf(challenge));
         }
-        return session(personOrApplicant(challenge.mobile), true);
+        // An applicant who chose email is keyed by it, as one who chose the
+        // phone is by the number.
+        const key = challenge.channel === 'email' ? `email:${challenge.email}` : challenge.mobile;
+        return session(personOrApplicant(key), true, proofOf(challenge));
       },
     },
     {
@@ -897,8 +959,10 @@ export function createMockTransport(): Transport {
         if (!subject) throw fail('unauthenticated', 'Sign in again.');
         // Rotated: the old one is dead the moment it is used.
         refreshTokens.delete(token);
+        const proof = proofs.get(token);
+        proofs.delete(token);
         const person = personForSubject(subject);
-        return session(person, subject.startsWith('applicant:'));
+        return session(person, subject.startsWith('applicant:'), proof);
       },
     },
     {
@@ -1097,11 +1161,12 @@ export function createMockTransport(): Transport {
           returnComment: null,
           timeline: [{ at: now, label: 'Started', comment: null }],
         };
-        // Pre-fill the applicant's mobile: it is the number they signed in
-        // with, and the number the real backend will already have verified.
+        // Pre-fill the applicant's mobile or email: it is what they signed in
+        // with, and what the real backend will already have verified.
         const applicant = app.parties.find(p => p.subject === 'applicant');
-        if (applicant && type.fields.some(f => f.subject === 'applicant' && f.fieldKey === 'mobile')) {
-          applicant.values.mobile = mobile;
+        const [key, value] = mobile.startsWith('email:') ? ['email', mobile.slice('email:'.length)] : ['mobile', mobile];
+        if (applicant && type.fields.some(f => f.subject === 'applicant' && f.fieldKey === key)) {
+          applicant.values[key] = value;
         }
         applications.set(id, app);
         applicantOf.set(id, subject);

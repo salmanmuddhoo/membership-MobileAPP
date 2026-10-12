@@ -1,20 +1,23 @@
 // Identification: NIC + AB Number name one active member. Nothing opens
-// here — the code goes to the mobile on that member's record, which the
-// person typing does not get to choose. The link is made on verify. A pair
-// the server does not recognise stops here: the person is told to contact
-// the office and goes no further (officer direction).
+// here — the code goes to the mobile or the email on that member's record.
+// The person chooses which, by WhatsApp or by email, never the number or
+// address itself. The link is made on verify. A pair the server does not
+// recognise stops here: the person is told to contact the office and goes
+// no further (officer direction).
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { Linking } from 'react-native';
 import { api, ApiError } from '@/api';
+import type { CodeChannel } from '@/api/types';
 import { OFFICE_PHONE, OFFICE_PHONE_URL } from '@/lib/office';
-import { Banner, Body, Button, Screen, Spacer, TextField, Title } from '@/ui';
+import { Banner, Body, Button, OptionField, Screen, Spacer, TextField, Title } from '@/ui';
 
 export default function LinkMember() {
   const router = useRouter();
   const [nic, setNic] = useState('');
   const [abNumber, setAbNumber] = useState('');
-  const [errors, setErrors] = useState<{ nic?: string; abNumber?: string }>({});
+  const [channel, setChannel] = useState<CodeChannel>('phone');
+  const [errors, setErrors] = useState<{ nic?: string; abNumber?: string; channel?: string }>({});
   const [problem, setProblem] = useState<string | null>(null);
   // The server said the pair names nobody: the way forward is the office.
   const [refused, setRefused] = useState(false);
@@ -29,19 +32,21 @@ export default function LinkMember() {
       const challenge = await api.linkMember({
         nic: nic.trim().toUpperCase(),
         abNumber: abNumber.trim().toUpperCase().replace(/\s+/g, ''),
+        channel,
       });
       router.push({
         pathname: '/(auth)/verify',
         params: {
           challengeId: challenge.challengeId,
           sentTo: challenge.sentTo ?? '',
+          sentBy: challenge.sentBy ?? '',
           purpose: challenge.purpose,
         },
       });
     } catch (e) {
       if (e instanceof ApiError) {
         if (e.code === 'validation_failed') {
-          setErrors({ nic: e.details.nic?.[0], abNumber: e.details.abNumber?.[0] });
+          setErrors({ nic: e.details.nic?.[0], abNumber: e.details.abNumber?.[0], channel: e.details.channel?.[0] });
         } else if (e.code === 'not_found') {
           setRefused(true);
           setProblem(e.message);
@@ -58,11 +63,11 @@ export default function LinkMember() {
     <Screen>
       <Title>Link my membership</Title>
       <Body muted>
-        Enter your NIC and AB Number as shown on your membership card. A code will be sent to the mobile number on your record.
+        Enter your NIC and AB Number as shown on your membership card, and choose where we send your code: the mobile number or the email address on your record.
       </Body>
       <Spacer size="xl" />
       {problem ? (
-        <Banner tone="danger" title={refused ? 'We could not find these details' : undefined}>
+        <Banner tone="danger" title={refused ? 'We could not send a code' : undefined}>
           {problem}
         </Banner>
       ) : null}
@@ -95,8 +100,17 @@ export default function LinkMember() {
         autoCorrect={false}
         placeholder="AB0001"
         error={errors.abNumber}
-        onSubmitEditing={ready ? send : undefined}
-        returnKeyType="send"
+        returnKeyType="done"
+      />
+      <OptionField
+        label="Send my code by"
+        value={channel}
+        options={[
+          { value: 'phone', label: 'WhatsApp', detail: 'To the mobile number on your membership record' },
+          { value: 'email', label: 'Email', detail: 'To the email address on your membership record' },
+        ]}
+        onChange={v => setChannel(v as CodeChannel)}
+        error={errors.channel}
       />
       <Button title="Send code" onPress={send} loading={busy} disabled={!ready} />
       <Spacer />

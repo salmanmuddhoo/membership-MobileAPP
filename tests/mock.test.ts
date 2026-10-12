@@ -15,7 +15,7 @@ async function linkMember(api: Api, nic = 'P1503881234567', abNumber = 'AB0001')
 }
 
 async function signUp(api: Api, mobile: string) {
-  const challenge = await api.startSignUp(mobile);
+  const challenge = await api.startSignUp({ channel: 'phone', mobile });
   return api.verifyOtp(challenge.challengeId, '123456');
 }
 
@@ -23,12 +23,59 @@ test('NIC + AB Number identify the member; the code goes to the number on record
   const api = memberApi(createMockTransport());
   const challenge = await api.linkMember({ nic: 'P1503881234567', abNumber: 'AB0001' });
   assert.equal(challenge.purpose, 'link_member');
-  // Never a number, masked or not: the answer must not say the pair matched.
-  assert.equal(challenge.sentTo, null);
+  // Masked, so the member knows which number to look at.
+  assert.equal(challenge.sentTo, '+230 5*** *234');
+  assert.equal(challenge.sentBy, 'whatsapp');
   const session = await api.verifyOtp(challenge.challengeId, '123456');
   assert.equal(session.identity.kind, 'member');
   assert.equal(session.identity.memberNo, 'AB0001');
   assert.equal(session.identity.mobile, '+23057891234');
+});
+
+test('a member may have the code sent to the email on record instead', async () => {
+  const api = memberApi(createMockTransport());
+  const challenge = await api.linkMember({ nic: 'P1503881234567', abNumber: 'AB0001', channel: 'email' });
+  assert.equal(challenge.sentBy, 'email');
+  assert.equal(challenge.sentTo, 'f***h@example.mu');
+  const session = await api.verifyOtp(challenge.challengeId, '123456');
+  assert.equal(session.identity.kind, 'member');
+  assert.equal(session.identity.mobile, null);
+  assert.equal(session.identity.email, 'fatimah@example.mu');
+  // A refresh keeps what the code proved.
+  const renewed = await api.refresh(session.refreshToken);
+  assert.equal(renewed.identity.email, 'fatimah@example.mu');
+});
+
+test('a channel the server does not know is refused, naming the field', async () => {
+  const api = memberApi(createMockTransport());
+  await assert.rejects(
+    api.linkMember({ nic: 'P1503881234567', abNumber: 'AB0001', channel: 'fax' as 'email' }),
+    (e: unknown) => {
+      assert.ok(e instanceof ApiError && e.code === 'validation_failed');
+      assert.ok(e.details.channel);
+      return true;
+    }
+  );
+});
+
+test('an applicant may sign up by email, which their application then carries', async () => {
+  const api = memberApi(createMockTransport());
+  const challenge = await api.startSignUp({ channel: 'email', email: 'New.Person@Example.mu' });
+  assert.equal(challenge.sentBy, 'email');
+  assert.equal(challenge.sentTo, 'n***n@example.mu');
+  const session = await api.verifyOtp(challenge.challengeId, '123456');
+  assert.equal(session.identity.kind, 'applicant');
+  assert.equal(session.identity.email, 'new.person@example.mu');
+  const app = await api.startApplication(session.accessToken, 'individual');
+  const applicant = app.parties.find(p => p.subject === 'applicant');
+  assert.equal(applicant?.values.email, 'new.person@example.mu');
+  assert.notEqual(applicant?.values.mobile, 'email:new.person@example.mu');
+
+  await assert.rejects(api.startSignUp({ channel: 'email', email: 'not-an-address' }), (e: unknown) => {
+    assert.ok(e instanceof ApiError && e.code === 'validation_failed');
+    assert.ok(e.details.email);
+    return true;
+  });
 });
 
 test('a NIC and AB Number that do not belong to one active member are refused, with the office to call', async () => {

@@ -34,7 +34,7 @@ export default function Profile() {
     return (
       <ScrollView contentContainerStyle={styles.content}>
         <Empty title="No membership record yet">
-          Signed in as {session ? forDisplay(session.identity.mobile) : ''}. Your details appear here once a membership application is approved.
+          Signed in as {session ? signedInAs(session.identity) : ''}. Your details appear here once a membership application is approved.
         </Empty>
         <Button title="Sign out" variant="ghost" onPress={confirmSignOut} />
       </ScrollView>
@@ -110,7 +110,7 @@ export default function Profile() {
       <Button title="Sign out" variant="ghost" onPress={confirmSignOut} />
       <Spacer size="sm" />
       <Body muted style={styles.signedInAs}>
-        Signed in as {session ? forDisplay(session.identity.mobile) : ''}
+        Signed in as {session ? signedInAs(session.identity) : ''}
       </Body>
     </ScrollView>
   );
@@ -120,3 +120,9 @@ const styles = StyleSheet.create({
   content: { padding: spacing.lg, paddingBottom: spacing.xxl },
   signedInAs: { textAlign: 'center' },
 });
+
+// What the person signed in with: the mobile, or the email for someone who
+// chose to receive their code by email.
+function signedInAs(identity: { mobile: string | null; email?: string | null }): string {
+  return identity.mobile ? forDisplay(identity.mobile) : (identity.email ?? '');
+}
