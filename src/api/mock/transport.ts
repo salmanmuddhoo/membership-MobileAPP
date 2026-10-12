@@ -909,7 +909,9 @@ export function createMockTransport(): Transport {
         const previous = challenges.get(String(body?.challengeId ?? ''));
         if (!previous) throw fail('not_found', 'Start again.');
         const wait = Math.ceil((previous.createdAt + 30_000 - Date.now()) / 1000);
-        if (wait > 0) throw fail('rate_limited', `Wait ${wait} seconds before requesting another code.`);
+        if (wait > 0) {
+          throw fail('rate_limited', `Please wait ${wait} second${wait === 1 ? '' : 's'} before requesting another code.`);
+        }
         challenges.delete(previous.id);
         const id = nextId('otp');
         const next = { ...previous, id, attempts: 0, createdAt: Date.now() };
