@@ -55,13 +55,14 @@ test('an error envelope keeps its code, message, details and correlation id', as
     assert.equal(e.code, 'validation_failed');
     assert.equal(e.correlationId, 'c2');
     assert.deepEqual(e.details, { 'applicant.1.nic': ['NIC is required.'] });
-    assert.equal(e.userMessage, 'Some details are missing. (ref c2)');
+    // The id stays on the error; the person never sees it.
+    assert.equal(e.userMessage, 'Some details are missing.');
   }
 });
 
 test("the server's own internal_error arrives in the server's words", async () => {
   // A defect in a handler. It comes back as a proper envelope, so it keeps
-  // its wording and its correlation id, and the person can quote the id.
+  // its wording and its correlation id, which is for the log, not the screen.
   const { transport, restore } = transportReturning(
     500,
     JSON.stringify({
@@ -78,7 +79,8 @@ test("the server's own internal_error arrives in the server's words", async () =
   } catch (e) {
     assert.ok(e instanceof ApiError);
     assert.equal(e.message, 'Something went wrong. Please try again.');
-    assert.equal(e.userMessage, 'Something went wrong. Please try again. (ref c3)');
+    assert.equal(e.correlationId, 'c3');
+    assert.equal(e.userMessage, 'Something went wrong. Please try again.');
   }
 });
 

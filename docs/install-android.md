@@ -140,8 +140,8 @@ themselves.
 - **Live build:** it does not, and linking sends a real code — the test
   environment needs `MEMBER_OTP_DELIVERY=log` (read the code from the
   server log) or `MEMBER_OTP_FIXED_CODE=123456` set, per
-  `docs/member-app.md` in the web repository, until an SMS gateway is
-  configured.
+  `docs/member-app.md` in the web repository, until WhatsApp (or an SMS
+  gateway) and email are configured.
 
 ## If something does not install
 

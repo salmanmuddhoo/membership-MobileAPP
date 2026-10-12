@@ -3,7 +3,8 @@
 // Every response is the same envelope (docs/api.md in the web repository):
 // `{ data, correlationId }` or `{ error: { code, message, correlationId } }`.
 // This unwraps it, so a caller sees the payload or an ApiError — never a raw
-// Response — and the correlation id is always kept so a person can quote it.
+// Response. The correlation id is kept on the error for whoever is
+// debugging, and never shown to the person.
 import type { ApiFailure, ApiSuccess, ErrorCode } from './types';
 
 export class ApiError extends Error {
@@ -18,11 +19,11 @@ export class ApiError extends Error {
     this.name = 'ApiError';
   }
 
-  // The message written for the person, plus the id support will ask for.
+  // The message written for the person, and nothing else: a reference
+  // number means nothing to a member, and the server log already has it
+  // (officer direction).
   get userMessage(): string {
-    return this.correlationId
-      ? `${this.message} (ref ${this.correlationId})`
-      : this.message;
+    return this.message;
   }
 }
 

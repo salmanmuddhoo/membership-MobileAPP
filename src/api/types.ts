@@ -238,24 +238,38 @@ export interface Promotion {
 //   memberId        the internal link from that session to the member row —
 //                   server-side only, never sent to the phone
 //
-// NIC + AB Number on their own open nothing: the code goes to the number
-// on record, which the person entering them does not get to choose.
+// NIC + AB Number on their own open nothing: the code goes to the mobile
+// or the email on record. The person chooses which, never the number or
+// address itself.
 // ---------------------------------------------------------------------------
+
+// Where the code goes: the phone (by WhatsApp) or email. Unset is phone,
+// as before the choice existed.
+export type CodeChannel = 'phone' | 'email';
+
 export interface LinkMemberRequest {
   nic: string;
   // The Member No. printed on the card: AB followed by digits.
   abNumber: string;
+  channel?: CodeChannel;
 }
+
+// A new applicant chooses the channel and types where it goes.
+export type SignUpRequest =
+  | { channel: 'phone'; mobile: string }
+  | { channel: 'email'; email: string };
 
 export interface OtpChallenge {
   challengeId: string;
   // What the challenge will produce once the code is verified.
   purpose: 'link_member' | 'sign_up';
-  // The number the code went to, masked (+2305xxx234), for a sign-up: the
-  // person just typed it. Always null for a link: the server answers a
-  // NIC + AB Number that names nobody exactly as one that does, so even a
-  // masked number would give the game away.
+  // Where the code went, masked: +230 5*** *428 or s***o@gmail.com. For a
+  // link, the mobile or email on the member's record. Null only from a
+  // server that predates the WhatsApp-or-email choice.
   sentTo: string | null;
+  // Where to look for it. Absent from a server that predates the choice,
+  // which sent every code by SMS.
+  sentBy?: 'whatsapp' | 'sms' | 'email';
   expiresInSeconds: number;
 }
 
@@ -272,7 +286,10 @@ export interface Session {
     // here — the server resolves it from the session.
     memberNo: string | null;
     displayName: string;
-    mobile: string;
+    // What the code proved, the mobile or the email; exactly one is set.
+    // `email` is absent from a session saved before the choice existed.
+    mobile: string | null;
+    email?: string | null;
     // When this device was linked to the member record.
     linkedAt: string;
   };

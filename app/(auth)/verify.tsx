@@ -1,10 +1,12 @@
-// Verification: the code proves the person holds the mobile the challenge
-// went to. On success the session that comes back is the authentication
+// Verification: the code proves the person holds the mobile or the email
+// the challenge went to. On success the session that comes back is the authentication
 // from here on — for a member, this is the moment the phone is linked.
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { api, ApiError } from '@/api';
+import type { OtpChallenge } from '@/api/types';
 import { useAuth } from '@/auth/AuthContext';
+import { asSentBy, whereItWent } from '@/lib/codes';
 import { Banner, Body, Button, Screen, Spacer, TextField, Title } from '@/ui';
 
 export default function Verify() {
@@ -13,10 +15,12 @@ export default function Verify() {
   const params = useLocalSearchParams<{
     challengeId: string;
     sentTo?: string;
+    sentBy?: string;
     purpose: 'link_member' | 'sign_up';
   }>();
   const [challengeId, setChallengeId] = useState(params.challengeId);
   const [sentTo, setSentTo] = useState<string | null>(params.sentTo || null);
+  const [sentBy, setSentBy] = useState<OtpChallenge['sentBy']>(asSentBy(params.sentBy));
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
@@ -59,6 +63,7 @@ export default function Verify() {
       const challenge = await api.resendOtp(challengeId);
       setChallengeId(challenge.challengeId);
       setSentTo(challenge.sentTo);
+      setSentBy(challenge.sentBy);
       setResendIn(30);
     } catch (e) {
       setProblem(e instanceof ApiError ? e.userMessage : 'Could not resend. Try again.');
@@ -68,11 +73,7 @@ export default function Verify() {
   return (
     <Screen>
       <Title>Enter the code</Title>
-      <Body muted>
-        {params.purpose === 'link_member'
-          ? 'A code has been sent by SMS to the mobile number on your membership record. If nothing arrives in a minute or two, the number on record may no longer be yours: contact the Al Barakah office on +230 5944 9797.'
-          : `Sent by SMS to ${sentTo ?? 'your mobile'}.`}
-      </Body>
+      <Body muted>{whereItWent(params.purpose, sentBy, sentTo)}</Body>
       <Spacer size="xl" />
       {problem ? <Banner tone="danger">{problem}</Banner> : null}
       <TextField
@@ -99,3 +100,4 @@ export default function Verify() {
     </Screen>
   );
 }
+
