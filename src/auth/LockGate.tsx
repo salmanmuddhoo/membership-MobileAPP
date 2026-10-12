@@ -84,7 +84,7 @@ function PinSetup({ replacing }: { replacing: boolean }) {
             ? 'So we know you have it right.'
             : replacing
               ? `PINs are now ${PIN_LENGTH} digits. Choose a new one to open the app from now on.`
-              : `${PIN_LENGTH} digits. You will use it to open the app from now on, instead of a code by SMS.`}
+              : `${PIN_LENGTH} digits. You will use it to open the app from now on, instead of a one-time code.`}
         </Text>
       </FadeIn>
       <View style={styles.message}>{message ? <Text style={styles.messageText}>{message}</Text> : null}</View>

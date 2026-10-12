@@ -42,8 +42,13 @@ table):
 
 - `MEMBER_SESSION_SECRET` — its own long random secret, never the test
   site's and never `AUTH_SESSION_SECRET`.
-- `MEMBER_OTP_DELIVERY=http`, with `MEMBER_OTP_WEBHOOK_URL` (and
-  `MEMBER_OTP_WEBHOOK_TOKEN`) for the SMS gateway. `log` and
+- How sign-in codes reach a phone: `MEMBER_OTP_DELIVERY=whatsapp`, with
+  `MEMBER_OTP_WHATSAPP_TEMPLATE` (the Authentication template Meta
+  approved) and the WhatsApp number and token in
+  `NOTIFY_WHATSAPP_PHONE_NUMBER_ID` and `NOTIFY_WHATSAPP_TOKEN`
+  (`docs/member-app.md`, "Codes by WhatsApp"); or `http` with
+  `MEMBER_OTP_WEBHOOK_URL` for an SMS gateway. Codes by email go the way the
+  site's other email does (`NOTIFY_EMAIL_*`). `log` and
   `MEMBER_OTP_FIXED_CODE` are refused in production.
 - `NOTIFY_PUSH_DELIVERY=fcm` and `NOTIFY_PUSH_SERVICE_ACCOUNT` — the
   Firebase service-account key, as on Vercel.
