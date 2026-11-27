@@ -71,10 +71,16 @@ Someone applying has no AB Number, and must not need one.
 | 1 | `POST /auth/sign-up` `{ channel: 'phone', mobile }` or `{ channel: 'email', email }` | The applicant chooses WhatsApp or email and types the number (any form `toInternational` accepts) or the address. **Always 200 for a well-formed one**, whether or not it is on some record — the response must not reveal who is a member. Returns an `OtpChallenge` with `purpose: 'sign_up'`. |
 | 2 | `POST /auth/verify-otp` | On success a `member_session` with `member_id` **null** and `identity.kind: 'applicant'`. That session can start, save and submit an application and read its own applications — nothing else. **It never resolves to a member record, even when the verified mobile is the one on a member's file**: member access comes only through linking. That is what makes step 1 safe to answer 200 for everyone. |
 
-The verified mobile becomes the applicant's `mobile` on the application,
-pre-filled and read-only in the app: the backend has already proved they
-hold it, staff have a confirmed number to call, and M9's notifications
-have a destination before anything is approved. The NIC is captured on
+For a sign-up by WhatsApp, the verified mobile becomes the applicant's
+`mobile` on the application, pre-filled and read-only in the app: the
+backend has already proved they hold it, staff have a confirmed number to
+call, and M9's notifications have a destination before anything is
+approved. (The app fills it in itself if the draft comes back without
+it.) A sign-up by email proves no number: the verified address is
+pre-filled as the applicant's `email` instead, and the applicant types
+their mobile like any other field — a locked, empty mandatory field would
+stop the application at its first step. The backend must keep the
+number they typed; staff confirm it when they call. The NIC is captured on
 the application form like every other field, and checked by staff against
 the ID card they file.
 
@@ -221,7 +227,7 @@ missing document — the app folds these onto the fields by that key.
 | Method | Path | Rules |
 | --- | --- | --- |
 | GET | `/applications` | The caller's own: `applicant_mobile = session.mobile`, plus (for a member) any application whose `existing_member_id` is theirs. Each with `parties`, `documents` (checklist status per item), `timeline` (from `applications/timeline.ts`, member-safe labels only — no officer names) and `returnComment` when status is `returned`. |
-| POST | `/applications` `{ membershipTypeCode }` | `startApplication` as the `member-app` system user with `applicant_mobile` set; pre-fills the applicant's `mobile`. 409 if the caller already has one not yet decided. 404 for an unknown or inactive type. |
+| POST | `/applications` `{ membershipTypeCode }` | `startApplication` as the `member-app` system user with `applicant_mobile` set; pre-fills the applicant's `mobile` (or, for a sign-up by email, their `email`). 409 if the caller already has one not yet decided. 404 for an unknown or inactive type. |
 | GET | `/applications/{id}` | 404 unless it is the caller's. |
 | PUT | `/applications/{id}/parties` `{ parties }` | `saveDraft` — accepts anything typed, checks nothing but ownership and that the field keys exist on the type (S-302: a draft save must never fail on content). 409 unless status is `draft` or `returned`. |
 | DELETE | `/applications/{id}` | `deleteDraftApplication`. Draft only, 409 otherwise. |

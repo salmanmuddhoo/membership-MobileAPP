@@ -9,6 +9,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { ApiError, type Application, type MembershipType, type PartyValues } from '@/api';
+import { useAuth } from '@/auth/AuthContext';
 import { PartyForm } from '@/forms/PartyForm';
 import { usePartyValues } from '@/forms/usePartyValues';
 import { partyTitle, subjectsOf } from '@/forms/validate';
@@ -62,10 +63,25 @@ function Wizard({
   stepIndex: number;
 }) {
   const router = useRouter();
+  const { session } = useAuth();
   const save = useSaveDraft(app.id);
   const remove = useDeleteDraft();
   const form = usePartyValues(membershipType, initial);
   const [problem, setProblem] = useState<string | null>(null);
+
+  // The applicant's mobile is the number they signed in with, when they
+  // signed in by WhatsApp: the code proved they hold it, so it is filled in
+  // if the draft lacks it, and locked. Someone who signed in by email has
+  // proved no number — they type theirs. Locked and empty, the mandatory
+  // field stopped the application at its first step.
+  const verifiedMobile = session?.identity.mobile ?? null;
+  const hasMobileField = membershipType.fields.some(f => f.subject === 'applicant' && f.fieldKey === 'mobile');
+  const { parties, setValue } = form;
+  useEffect(() => {
+    if (!verifiedMobile || !hasMobileField) return;
+    const applicant = parties.find(p => p.subject === 'applicant');
+    if (applicant && !applicant.values.mobile?.trim()) setValue('applicant', applicant.ordinal, 'mobile', verifiedMobile);
+  }, [verifiedMobile, hasMobileField, parties, setValue]);
 
   // One step per party, in the order the officer's form shows them.
   const steps = useMemo(() => {
@@ -173,7 +189,7 @@ function Wizard({
         type={membershipType}
         party={current}
         errors={form.errors}
-        readOnlyKeys={current.subject === 'applicant' ? ['mobile'] : []}
+        readOnlyKeys={current.subject === 'applicant' && verifiedMobile ? ['mobile'] : []}
         onChange={(k, v) => form.setValue(current.subject, current.ordinal, k, v)}
       />
       {app.status === 'draft' ? (

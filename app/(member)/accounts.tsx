@@ -2,22 +2,26 @@
 // their own, then those of the minors in their care, told apart on sight.
 // A balance each, nothing else — the account number, status and opening
 // date are branch matters (officer direction). Tap one for its
-// transactions.
+// transactions. Each minor's accounts fold away under the minor's name,
+// closed until it is tapped, so the member's own come first.
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
-import React from 'react';
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useState } from 'react';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { ApiError, type AccountSummary } from '@/api';
 import { useAccounts, useDependents, useMe } from '@/hooks/queries';
-import { Banner, Body, Button, Card, Empty, Eyebrow, Heading, Loading } from '@/ui';
+import { initials } from '@/lib/names';
+import { Banner, Body, Button, Card, Empty, Eyebrow, Loading } from '@/ui';
 import { Balance, BalanceToggle } from '@/ui/Balance';
-import { colors, radius, spacing, type } from '@/ui/theme';
+import { colors, radius, shadow, spacing, type } from '@/ui/theme';
 
 export default function Accounts() {
   const router = useRouter();
   const me = useMe();
   const accounts = useAccounts();
   const dependents = useDependents();
+  // Which minors are open; none, to start with.
+  const [open, setOpen] = useState<Record<string, boolean>>({});
 
   if (accounts.isLoading) return <Loading />;
   if (accounts.error) {
@@ -67,29 +71,52 @@ export default function Accounts() {
         />
       ))}
 
-      {minors.map(minor => (
-        <View key={minor.id} style={styles.minor}>
-          <Heading>{minor.name}</Heading>
-          <Text style={styles.minorHint}>
-            Minor in your care{minor.relationship ? ` · ${minor.relationship}` : ''}
-            {minor.memberNo ? ` · ${minor.memberNo}` : ''}
-          </Text>
-          {minor.accounts.length === 0 ? <Body muted>No accounts yet.</Body> : null}
-          {minor.accounts.map(a => (
-            <AccountCard
-              key={a.id}
-              account={a}
-              minor
-              onPress={() =>
-                router.push({
-                  pathname: '/dependent/[dependentId]/account/[accountId]',
-                  params: { dependentId: minor.id, accountId: a.id },
-                })
-              }
-            />
-          ))}
-        </View>
-      ))}
+      {minors.length > 0 ? <Eyebrow>Minors in your care</Eyebrow> : null}
+      {minors.map(minor => {
+        const expanded = !!open[minor.id];
+        const count = `${minor.accounts.length} account${minor.accounts.length === 1 ? '' : 's'}`;
+        const about = [minor.relationship, minor.memberNo, count].filter(Boolean).join(' · ');
+        return (
+          <View key={minor.id}>
+            <Pressable
+              onPress={() => setOpen(prev => ({ ...prev, [minor.id]: !prev[minor.id] }))}
+              accessibilityRole="button"
+              accessibilityState={{ expanded }}
+              accessibilityLabel={`${minor.name}, ${count}`}
+              accessibilityHint={expanded ? 'Hides their accounts' : 'Shows their accounts'}
+              style={({ pressed }) => [styles.minorHead, pressed && styles.pressed]}
+            >
+              <View style={styles.minorAvatar}>
+                <Text style={styles.minorAvatarText}>{initials(minor.name)}</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={type.subheading} numberOfLines={2}>
+                  {minor.name}
+                </Text>
+                <Text style={styles.minorHint}>{about}</Text>
+              </View>
+              <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={20} color={colors.muted} />
+            </Pressable>
+            {expanded ? (
+              <View style={styles.minorAccounts}>
+                {minor.accounts.map(a => (
+                  <AccountCard
+                    key={a.id}
+                    account={a}
+                    minor
+                    onPress={() =>
+                      router.push({
+                        pathname: '/dependent/[dependentId]/account/[accountId]',
+                        params: { dependentId: minor.id, accountId: a.id },
+                      })
+                    }
+                  />
+                ))}
+              </View>
+            ) : null}
+          </View>
+        );
+      })}
     </ScrollView>
   );
 }
@@ -139,7 +166,34 @@ const styles = StyleSheet.create({
   },
   iconMinor: { backgroundColor: colors.accentSoft },
   balance: { ...type.heading, fontSize: 20, marginTop: spacing.xs, fontVariant: ['tabular-nums'] },
-  minor: { marginTop: spacing.sm },
-  minorHint: { ...type.small, marginTop: -spacing.sm, marginBottom: spacing.md },
+  minorHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md + 2,
+    padding: spacing.lg + 2,
+    marginBottom: spacing.md,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surface,
+    ...shadow.card,
+  },
+  pressed: { opacity: 0.85, transform: [{ scale: 0.985 }] },
+  minorAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.accentSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  minorAvatarText: { color: colors.accentInk, fontSize: 15, fontWeight: '800', letterSpacing: 0.5 },
+  minorHint: { ...type.small, fontSize: 13, marginTop: 2 },
+  // Opened, the minor's accounts hang from a gold line beneath the name.
+  minorAccounts: {
+    marginLeft: spacing.xl,
+    paddingLeft: spacing.md,
+    borderLeftWidth: 2,
+    borderLeftColor: colors.accentSoft,
+    marginBottom: spacing.sm,
+  },
   minorTag: { fontSize: 12, fontWeight: '600', color: colors.accentInk, marginTop: 2 },
 });
