@@ -1,7 +1,8 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { API_MODE } from '@/api';
 import Constants from 'expo-constants';
 import { formatBuild } from '@/lib/build';
@@ -9,7 +10,8 @@ import { useRootedDevice } from '@/lib/device';
 import { Banner, Button } from '@/ui';
 import { APP_VARIANT, TestBadge } from '@/ui/TestBadge';
 import { AnimatedLogo, FadeIn } from '@/ui/Logo';
-import { colors, spacing } from '@/ui/theme';
+import { StarPattern } from '@/ui/Pattern';
+import { colors, radius, spacing, type } from '@/ui/theme';
 
 export default function Welcome() {
   const router = useRouter();
@@ -17,20 +19,28 @@ export default function Welcome() {
   // they chose it.
   const { reason } = useLocalSearchParams<{ reason?: string }>();
   const rooted = useRootedDevice();
+  const insets = useSafeAreaInsets();
   return (
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.hero}>
-        <AnimatedLogo size={120} />
+    <View style={styles.screen}>
+      <StatusBar style="light" />
+      <StarPattern scale={1.4} />
+      <SafeAreaView style={styles.hero} edges={['top', 'left', 'right']}>
+        <AnimatedLogo size={116} />
         <FadeIn delay={250}>
+          <Text style={styles.since}>Since 1998</Text>
           <Text style={styles.title}>Al Barakah</Text>
           <Text style={styles.subtitle}>Multi-purpose Co-operative Society Ltd</Text>
           <View style={styles.badge}>
             <TestBadge />
           </View>
         </FadeIn>
-      </View>
+      </SafeAreaView>
       <FadeIn delay={400}>
-        <View style={styles.actions}>
+        <View style={[styles.actions, { paddingBottom: insets.bottom + spacing.lg }]}>
+          <Text style={styles.sheetTitle}>Welcome</Text>
+          <Text style={[type.small, styles.sheetText]}>
+            Your balances, your membership card and your requests to the Society, on your phone.
+          </Text>
           {reason === 'pin_locked' ? (
             <Banner tone="warning" title="This phone was signed out">
               Too many wrong PINs. Link your membership again to get back in.
@@ -55,23 +65,35 @@ export default function Welcome() {
           </Text>
         </View>
       </FadeIn>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.primary },
+  screen: { flex: 1, backgroundColor: colors.primaryDark, overflow: 'hidden' },
   hero: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl, gap: spacing.xl },
-  title: { fontSize: 34, fontWeight: '700', color: '#fff', textAlign: 'center' },
-  subtitle: { fontSize: 15, color: 'rgba(255,255,255,0.8)', marginTop: spacing.xs, textAlign: 'center' },
+  since: {
+    color: colors.accent,
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 2.4,
+    textTransform: 'uppercase',
+    textAlign: 'center',
+    marginBottom: spacing.sm,
+  },
+  title: { fontSize: 38, fontWeight: '800', letterSpacing: -0.8, color: '#fff', textAlign: 'center' },
+  subtitle: { fontSize: 15, color: colors.onDarkMuted, marginTop: spacing.xs, textAlign: 'center' },
   badge: { marginTop: spacing.md },
   actions: {
     backgroundColor: colors.bg,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    padding: spacing.xl,
+    borderTopLeftRadius: radius.xl + 4,
+    borderTopRightRadius: radius.xl + 4,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.xl + 4,
     gap: spacing.md,
   },
+  sheetTitle: { ...type.title },
+  sheetText: { marginTop: -spacing.sm, marginBottom: spacing.sm },
   note: { color: colors.muted, fontSize: 12, textAlign: 'center', marginTop: spacing.sm },
   build: { color: colors.muted, fontSize: 11, textAlign: 'center', marginTop: spacing.xs },
 });

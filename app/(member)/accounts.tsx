@@ -3,12 +3,13 @@
 // A balance each, nothing else — the account number, status and opening
 // date are branch matters (officer direction). Tap one for its
 // transactions.
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import React from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { ApiError, type AccountSummary } from '@/api';
 import { useAccounts, useDependents, useMe } from '@/hooks/queries';
-import { Banner, Body, Button, Card, Empty, Heading, Loading } from '@/ui';
+import { Banner, Body, Button, Card, Empty, Eyebrow, Heading, Loading } from '@/ui';
 import { Balance, BalanceToggle } from '@/ui/Balance';
 import { colors, radius, spacing, type } from '@/ui/theme';
 
@@ -54,10 +55,9 @@ export default function Accounts() {
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={accounts.isRefetching} onRefresh={refresh} tintColor={colors.primary} />}
     >
-      <View style={styles.head}>
-        <Heading>My accounts</Heading>
-        <BalanceToggle />
-      </View>
+      <Eyebrow style={styles.firstEyebrow} right={<BalanceToggle />}>
+        My accounts
+      </Eyebrow>
       {own.length === 0 ? <Body muted>No accounts are open under your membership.</Body> : null}
       {own.map(a => (
         <AccountCard
@@ -98,15 +98,28 @@ function hasActivity(account: AccountSummary): boolean {
   return account.transactionCount > 0;
 }
 
+// Shares look like shares, savings like a wallet; a minor's account is
+// gold where the member's own are emerald, so they are told apart on sight.
 function AccountCard({ account, minor, onPress }: { account: AccountSummary; minor?: boolean; onPress: () => void }) {
+  const shares = /share/i.test(account.typeName);
   return (
-    <Card onPress={onPress} style={minor ? styles.minorCard : undefined}>
+    <Card onPress={onPress}>
       <View style={styles.cardRow}>
-        <View style={{ flex: 1 }}>
-          <Text style={type.subheading}>{account.typeName}</Text>
-          {minor ? <Text style={styles.minorTag}>Minor&apos;s account</Text> : null}
+        <View style={[styles.icon, minor && styles.iconMinor]}>
+          <Ionicons
+            name={shares ? 'pie-chart-outline' : 'wallet-outline'}
+            size={22}
+            color={minor ? colors.accentInk : colors.primary}
+          />
         </View>
-        <Balance amount={account.balance} style={styles.balance} />
+        <View style={{ flex: 1 }}>
+          <Text style={type.subheading} numberOfLines={2}>
+            {account.typeName}
+          </Text>
+          {minor ? <Text style={styles.minorTag}>Minor&apos;s account</Text> : null}
+          <Balance amount={account.balance} style={styles.balance} />
+        </View>
+        <Ionicons name="chevron-forward" size={20} color={colors.subtle} />
       </View>
     </Card>
   );
@@ -114,16 +127,19 @@ function AccountCard({ account, minor, onPress }: { account: AccountSummary; min
 
 const styles = StyleSheet.create({
   content: { padding: spacing.lg, paddingBottom: spacing.xxl },
-  head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
-  cardRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  balance: { ...type.heading, color: colors.primary },
-  minor: { marginTop: spacing.lg },
-  minorHint: { ...type.small, marginTop: -spacing.sm, marginBottom: spacing.md },
-  minorCard: {
-    borderLeftWidth: 4,
-    borderLeftColor: colors.accent,
-    borderTopLeftRadius: radius.sm,
-    borderBottomLeftRadius: radius.sm,
+  firstEyebrow: { marginTop: 0 },
+  cardRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md + 2 },
+  icon: {
+    width: 48,
+    height: 48,
+    borderRadius: radius.md,
+    backgroundColor: colors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  minorTag: { ...type.small, color: colors.warning, marginTop: 2 },
+  iconMinor: { backgroundColor: colors.accentSoft },
+  balance: { ...type.heading, fontSize: 20, marginTop: spacing.xs, fontVariant: ['tabular-nums'] },
+  minor: { marginTop: spacing.sm },
+  minorHint: { ...type.small, marginTop: -spacing.sm, marginBottom: spacing.md },
+  minorTag: { fontSize: 12, fontWeight: '600', color: colors.accentInk, marginTop: 2 },
 });
