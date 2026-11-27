@@ -1,23 +1,23 @@
 // The landing page. On the brand's emerald: who is signed in and their
 // money in one figure, on a card that overlaps the header. Beneath it,
-// what they can do in a tap, where their requests stand, what the Society
-// is promoting, and its partners — the outlets that pay the premium fee
-// (officer direction — a promotional page, not a second menu).
+// the three ways to move money, what the Society is promoting, and its
+// partners — the outlets that pay the premium fee (officer direction — a
+// promotional page, not a second menu).
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFocusEffect, useRouter, type Href } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useCallback, useState } from 'react';
 import { Image, Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ApiError, type MemberOperation, type MemberRequest, type Outlet } from '@/api';
+import { ApiError, type MemberOperation, type Outlet } from '@/api';
 import { useAuth } from '@/auth/AuthContext';
-import { useAccounts, useApplications, useMe, useOutlets, usePromotions, useReference, useRequests } from '@/hooks/queries';
+import { useAccounts, useApplications, useMe, useOutlets, usePromotions, useReference } from '@/hooks/queries';
 import { useRootedDevice } from '@/lib/device';
-import { formatDate, formatMoney, statusLabel } from '@/lib/format';
+import { formatDate, statusLabel } from '@/lib/format';
 import { sumMoney } from '@/lib/money';
+import { givenNames, initials } from '@/lib/names';
 import { OFFICE_PHONE, OFFICE_PHONE_URL } from '@/lib/office';
 import { discountLabel } from '@/lib/outlets';
-import { requestTitle, sortRequests, toneFor, type Tone } from '@/lib/transact';
 import { Banner, Button, Eyebrow } from '@/ui';
 import { Balance, BalanceToggle } from '@/ui/Balance';
 import { PromotionCarousel, showablePromotions } from '@/ui/Carousel';
@@ -28,37 +28,14 @@ import { colors, glass, radius, shadow, spacing, type } from '@/ui/theme';
 
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
 
-type QuickAction = {
-  key: string;
-  label: string;
-  icon: IconName;
-  href: Href;
-  // A money movement, shown only once the Society has switched it on.
-  op?: MemberOperation;
-  memberOnly?: boolean;
-};
-
-const QUICK_ACTIONS: QuickAction[] = [
-  { key: 'deposit', label: 'Deposit', icon: 'arrow-down', href: '/transact/deposit', op: 'deposit' },
-  { key: 'withdraw', label: 'Withdraw', icon: 'arrow-up', href: '/transact/withdrawal', op: 'withdrawal' },
-  { key: 'transfer', label: 'Transfer', icon: 'swap-horizontal', href: '/transact/transfer', op: 'transfer' },
-  { key: 'card', label: 'My card', icon: 'card-outline', href: '/(member)/card', memberOnly: true },
-  { key: 'accounts', label: 'Accounts', icon: 'wallet-outline', href: '/(member)/accounts' },
-  { key: 'details', label: 'My details', icon: 'person-outline', href: '/(member)/profile' },
+// The three ways to move money, and nothing else: the tab bar already
+// leads to the accounts, the card and the details. Each is shown greyed
+// out until the Society switches it on.
+const QUICK_ACTIONS: { op: MemberOperation; label: string; icon: IconName; href: Href }[] = [
+  { op: 'deposit', label: 'Deposit', icon: 'arrow-down', href: '/transact/deposit' },
+  { op: 'withdrawal', label: 'Withdraw', icon: 'arrow-up', href: '/transact/withdrawal' },
+  { op: 'transfer', label: 'Transfer', icon: 'swap-horizontal', href: '/transact/transfer' },
 ];
-
-const KIND_ICON: Record<MemberOperation, IconName> = {
-  deposit: 'arrow-down',
-  withdrawal: 'arrow-up',
-  transfer: 'swap-horizontal',
-};
-
-const TONE_COLOR: Record<Tone, string> = {
-  info: colors.info,
-  success: colors.success,
-  warning: colors.warning,
-  danger: colors.danger,
-};
 
 // How far the balance card reaches up into the emerald header.
 const OVERLAP = 64;
@@ -105,7 +82,6 @@ export default function Home() {
   const cards = promotions.data ? showablePromotions(promotions.data) : [];
   const partners = (outlets.data ?? []).filter(o => o.isPartner);
   const enabled = reference.data?.enabledOperations ?? [];
-  const actions = QUICK_ACTIONS.filter(a => !a.memberOnly || isMember);
 
   const displayName = session?.identity.displayName ?? '';
   const since = profile?.joinedAt ? new Date(profile.joinedAt).getFullYear() : null;
@@ -137,12 +113,12 @@ export default function Home() {
               accessibilityLabel="My details"
               style={({ pressed }) => [styles.avatar, pressed && styles.pressed]}
             >
-              <Text style={styles.avatarText}>{initials(displayName)}</Text>
+              <Text style={styles.avatarText}>{initials(displayName) || 'AB'}</Text>
             </Pressable>
             <View style={styles.greetingBlock}>
               <Text style={styles.greeting}>Assalamu alaikum,</Text>
-              <Text style={styles.name} numberOfLines={1}>
-                {firstName(displayName) || 'Member'}
+              <Text style={styles.name} numberOfLines={2}>
+                {givenNames(profile, displayName) || 'Member'}
               </Text>
             </View>
             <TestBadge />
@@ -177,11 +153,6 @@ export default function Home() {
               </View>
               <Balance amount={accounts.data ? total : null} style={styles.balanceValue} />
               <View style={styles.balanceFoot}>
-                <Text style={type.small}>
-                  {accounts.data
-                    ? `Across ${accounts.data.length} account${accounts.data.length === 1 ? '' : 's'}`
-                    : 'Loading…'}
-                </Text>
                 <Pressable
                   onPress={() => router.push('/(member)/accounts')}
                   accessibilityRole="button"
@@ -235,11 +206,11 @@ export default function Home() {
             <>
               <Eyebrow>Quick actions</Eyebrow>
               <View style={styles.grid}>
-                {actions.map(a => {
-                  const on = !a.op || enabled.includes(a.op);
+                {QUICK_ACTIONS.map(a => {
+                  const on = enabled.includes(a.op);
                   return (
                     <Pressable
-                      key={a.key}
+                      key={a.op}
                       onPress={() => router.push(a.href)}
                       disabled={!on}
                       accessibilityRole="button"
@@ -258,7 +229,6 @@ export default function Home() {
                   );
                 })}
               </View>
-              <RecentRequests onSeeAll={() => router.push('/(member)/transact')} />
             </>
           ) : null}
 
@@ -309,60 +279,6 @@ export default function Home() {
   );
 }
 
-// The latest few things asked for from the app, with where each stands.
-// Its own component so the request list is only fetched for someone who
-// holds an account.
-function RecentRequests({ onSeeAll }: { onSeeAll: () => void }) {
-  const requests = useRequests();
-  const list = sortRequests(requests.data ?? []).slice(0, 3);
-  if (list.length === 0) return null;
-  return (
-    <>
-      <Eyebrow
-        right={
-          <Pressable onPress={onSeeAll} accessibilityRole="button" hitSlop={8} style={styles.linkRow}>
-            <Text style={styles.link}>See all</Text>
-            <Ionicons name="chevron-forward" size={16} color={colors.primary} />
-          </Pressable>
-        }
-      >
-        Recent requests
-      </Eyebrow>
-      <View style={styles.listCard}>
-        {list.map((r, i) => (
-          <RequestRow key={r.id} request={r} first={i === 0} />
-        ))}
-      </View>
-    </>
-  );
-}
-
-function RequestRow({ request: r, first }: { request: MemberRequest; first: boolean }) {
-  const tone = TONE_COLOR[toneFor(r.state)];
-  return (
-    <View style={[styles.requestRow, !first && styles.requestDivider]}>
-      <View style={styles.requestIcon}>
-        <Ionicons name={KIND_ICON[r.kind]} size={18} color={colors.primary} />
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={type.label} numberOfLines={2}>
-          {requestTitle(r)}
-        </Text>
-        <Text style={styles.requestMeta} numberOfLines={1}>
-          {formatDate(r.createdAt)}
-          {r.forMinor ? ` · For ${r.forMinor}` : ''}
-        </Text>
-      </View>
-      <View style={styles.requestRight}>
-        <Text style={styles.requestAmount}>{formatMoney(r.amount)}</Text>
-        <Text style={[styles.requestStatus, { color: tone }]} numberOfLines={1}>
-          {r.statusLabel}
-        </Text>
-      </View>
-    </View>
-  );
-}
-
 // A partner's link if it has one; otherwise the Cards screen, where the
 // outlet is listed with its address and terms.
 function openPartner(outlet: Outlet, fallback: () => void) {
@@ -392,16 +308,6 @@ function PartnerTile({ outlet, onPress }: { outlet: Outlet; onPress: () => void 
       </Text>
     </Pressable>
   );
-}
-
-function firstName(displayName: string): string {
-  return displayName.trim().split(/\s+/)[0] ?? '';
-}
-
-function initials(displayName: string): string {
-  const parts = displayName.trim().split(/\s+/).filter(Boolean);
-  const letters = parts.length > 1 ? parts[0][0] + parts[parts.length - 1][0] : (parts[0] ?? '').slice(0, 2);
-  return letters.toUpperCase() || 'AB';
 }
 
 const styles = StyleSheet.create({
@@ -475,7 +381,7 @@ const styles = StyleSheet.create({
   balanceFoot: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
     marginTop: spacing.lg,
     paddingTop: spacing.md,
     borderTopWidth: 1,
@@ -500,27 +406,6 @@ const styles = StyleSheet.create({
   },
   actionTileOff: { ...glass.frost, boxShadow: 'none' },
   actionLabel: { fontSize: 13, fontWeight: '600', color: colors.text },
-
-  listCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    paddingHorizontal: spacing.lg,
-    ...shadow.card,
-  },
-  requestRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.md + 2 },
-  requestDivider: { borderTopWidth: 1, borderTopColor: colors.divider },
-  requestIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: colors.primarySoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  requestMeta: { fontSize: 12, color: colors.muted, marginTop: 2 },
-  requestRight: { alignItems: 'flex-end', maxWidth: '42%' },
-  requestAmount: { fontSize: 15, fontWeight: '700', color: colors.text, fontVariant: ['tabular-nums'] },
-  requestStatus: { fontSize: 12, fontWeight: '600', marginTop: 2 },
 
   partnerBanner: {
     flexDirection: 'row',
