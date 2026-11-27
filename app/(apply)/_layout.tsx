@@ -2,7 +2,7 @@ import { Redirect, Stack } from 'expo-router';
 import React from 'react';
 import { useAuth } from '@/auth/AuthContext';
 import { Loading } from '@/ui';
-import { colors } from '@/ui/theme';
+import { stackHeader } from '@/ui/header';
 
 export default function ApplyLayout() {
   const { ready, session } = useAuth();
@@ -10,12 +10,7 @@ export default function ApplyLayout() {
   if (!session) return <Redirect href="/(auth)/sign-up" />;
   return (
     <Stack
-      screenOptions={{
-        headerStyle: { backgroundColor: colors.primary },
-        headerTintColor: '#fff',
-        headerTitleStyle: { fontWeight: '600' },
-        contentStyle: { backgroundColor: colors.bg },
-      }}
+      screenOptions={stackHeader}
     >
       <Stack.Screen name="index" options={{ title: 'Apply' }} />
       <Stack.Screen name="[id]/form" options={{ title: 'Your details' }} />

@@ -1,30 +1,89 @@
-// The landing page: the member's money in one figure, what the Society is
-// promoting, and its partners — the outlets that pay the premium fee
+// The landing page. On the brand's emerald: who is signed in and their
+// money in one figure, on a card that overlaps the header. Beneath it,
+// what they can do in a tap, where their requests stand, what the Society
+// is promoting, and its partners — the outlets that pay the premium fee
 // (officer direction — a promotional page, not a second menu).
-import { useRouter } from 'expo-router';
-import React from 'react';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { useFocusEffect, useRouter, type Href } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import React, { useCallback, useState } from 'react';
 import { Image, Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { ApiError, type Outlet } from '@/api';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ApiError, type MemberOperation, type MemberRequest, type Outlet } from '@/api';
 import { useAuth } from '@/auth/AuthContext';
-import { useAccounts, useApplications, useMe, useOutlets, usePromotions } from '@/hooks/queries';
+import { useAccounts, useApplications, useMe, useOutlets, usePromotions, useReference, useRequests } from '@/hooks/queries';
 import { useRootedDevice } from '@/lib/device';
-import { formatDate, statusLabel } from '@/lib/format';
+import { formatDate, formatMoney, statusLabel } from '@/lib/format';
 import { sumMoney } from '@/lib/money';
+import { OFFICE_PHONE, OFFICE_PHONE_URL } from '@/lib/office';
 import { discountLabel } from '@/lib/outlets';
-import { Banner, Body, Button, Card, Heading, Spacer } from '@/ui';
+import { requestTitle, sortRequests, toneFor, type Tone } from '@/lib/transact';
+import { Banner, Button, Eyebrow } from '@/ui';
 import { Balance, BalanceToggle } from '@/ui/Balance';
 import { PromotionCarousel, showablePromotions } from '@/ui/Carousel';
-import { colors, radius, spacing, type } from '@/ui/theme';
+import { GlassSheen } from '@/ui/Glass';
+import { StarPattern } from '@/ui/Pattern';
+import { TestBadge } from '@/ui/TestBadge';
+import { colors, glass, radius, shadow, spacing, type } from '@/ui/theme';
+
+type IconName = React.ComponentProps<typeof Ionicons>['name'];
+
+type QuickAction = {
+  key: string;
+  label: string;
+  icon: IconName;
+  href: Href;
+  // A money movement, shown only once the Society has switched it on.
+  op?: MemberOperation;
+  memberOnly?: boolean;
+};
+
+const QUICK_ACTIONS: QuickAction[] = [
+  { key: 'deposit', label: 'Deposit', icon: 'arrow-down', href: '/transact/deposit', op: 'deposit' },
+  { key: 'withdraw', label: 'Withdraw', icon: 'arrow-up', href: '/transact/withdrawal', op: 'withdrawal' },
+  { key: 'transfer', label: 'Transfer', icon: 'swap-horizontal', href: '/transact/transfer', op: 'transfer' },
+  { key: 'card', label: 'My card', icon: 'card-outline', href: '/(member)/card', memberOnly: true },
+  { key: 'accounts', label: 'Accounts', icon: 'wallet-outline', href: '/(member)/accounts' },
+  { key: 'details', label: 'My details', icon: 'person-outline', href: '/(member)/profile' },
+];
+
+const KIND_ICON: Record<MemberOperation, IconName> = {
+  deposit: 'arrow-down',
+  withdrawal: 'arrow-up',
+  transfer: 'swap-horizontal',
+};
+
+const TONE_COLOR: Record<Tone, string> = {
+  info: colors.info,
+  success: colors.success,
+  warning: colors.warning,
+  danger: colors.danger,
+};
+
+// How far the balance card reaches up into the emerald header.
+const OVERLAP = 64;
 
 export default function Home() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { session } = useAuth();
   const me = useMe();
   const accounts = useAccounts();
   const applications = useApplications();
   const promotions = usePromotions();
   const outlets = useOutlets();
+  const reference = useReference();
   const rooted = useRootedDevice();
+
+  // White status bar text over the emerald, only while this tab is the
+  // one showing; every other screen has a light header.
+  const [focused, setFocused] = useState(true);
+  useFocusEffect(
+    useCallback(() => {
+      setFocused(true);
+      return () => setFocused(false);
+    }, [])
+  );
 
   const refreshing = me.isRefetching || accounts.isRefetching;
   const refresh = () => {
@@ -33,105 +92,274 @@ export default function Home() {
     applications.refetch();
     promotions.refetch();
     outlets.refetch();
+    reference.refetch();
   };
 
   const profile = me.data;
-  const isMember = profile?.kind === 'member';
-  const hasAccounts = profile?.kind === 'member' || profile?.kind === 'customer';
+  const kind = profile?.kind ?? session?.identity.kind;
+  const isMember = kind === 'member';
+  const hasAccounts = kind === 'member' || kind === 'customer';
   const openApplication = applications.data?.find(a => !['approved', 'rejected'].includes(a.status));
   const problem = me.error instanceof ApiError ? me.error.userMessage : null;
   const total = accounts.data ? sumMoney(accounts.data.map(a => a.balance)) : null;
   const cards = promotions.data ? showablePromotions(promotions.data) : [];
-
   const partners = (outlets.data ?? []).filter(o => o.isPartner);
+  const enabled = reference.data?.enabledOperations ?? [];
+  const actions = QUICK_ACTIONS.filter(a => !a.memberOnly || isMember);
+
+  const displayName = session?.identity.displayName ?? '';
+  const since = profile?.joinedAt ? new Date(profile.joinedAt).getFullYear() : null;
+  const showOverlapCard = hasAccounts || (!isMember && !me.isLoading);
 
   return (
-    <ScrollView
-      contentContainerStyle={styles.content}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.primary} />}
-    >
-      <Text style={type.small}>Assalamu alaikum</Text>
-      <Text style={type.title}>{session?.identity.displayName ?? 'Member'}</Text>
-      {isMember && profile?.memberNo ? (
-        <View style={styles.memberNo}>
-          <Text style={styles.memberNoLabel}>Member No.</Text>
-          <Text style={styles.memberNoValue}>{profile.memberNo}</Text>
-        </View>
-      ) : (
-        <Spacer />
-      )}
-      {problem ? <Banner tone="danger">{problem}</Banner> : null}
-      {rooted ? (
-        <Banner tone="warning" title="This phone appears to be rooted">
-          A rooted phone can expose what the app keeps on it. Use the app on a phone you trust.
-        </Banner>
-      ) : null}
+    <View style={styles.screen}>
+      {focused ? <StatusBar style="light" /> : null}
+      <ScrollView
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor="#fff" colors={[colors.primary]} />
+        }
+      >
+        {/* Pulled past the top, the page shows more emerald, not a white gap. */}
+        <View style={styles.overscroll} />
 
-      {hasAccounts ? (
-        <Pressable
-          onPress={() => router.push('/(member)/accounts')}
-          accessibilityRole="button"
-          style={({ pressed }) => [styles.total, pressed && { opacity: 0.9 }]}
+        <View
+          style={[
+            styles.hero,
+            { paddingTop: insets.top + spacing.lg, paddingBottom: showOverlapCard ? OVERLAP + spacing.xl : spacing.xl },
+          ]}
         >
-          <View style={styles.totalHead}>
-            <Text style={styles.totalLabel}>Total balance</Text>
-            <BalanceToggle color="rgba(255,255,255,0.9)" />
+          <StarPattern />
+          <View style={styles.heroTop}>
+            <Pressable
+              onPress={() => router.push('/(member)/profile')}
+              accessibilityRole="button"
+              accessibilityLabel="My details"
+              style={({ pressed }) => [styles.avatar, pressed && styles.pressed]}
+            >
+              <Text style={styles.avatarText}>{initials(displayName)}</Text>
+            </Pressable>
+            <View style={styles.greetingBlock}>
+              <Text style={styles.greeting}>Assalamu alaikum,</Text>
+              <Text style={styles.name} numberOfLines={1}>
+                {firstName(displayName) || 'Member'}
+              </Text>
+            </View>
+            <TestBadge />
+            <Pressable
+              onPress={() => Linking.openURL(OFFICE_PHONE_URL).catch(() => undefined)}
+              accessibilityRole="button"
+              accessibilityLabel={`Call the office on ${OFFICE_PHONE}`}
+              hitSlop={8}
+              style={({ pressed }) => [styles.heroIcon, pressed && styles.pressed]}
+            >
+              <GlassSheen radius={21} intensity={0.1} />
+              <Ionicons name="call-outline" size={20} color="#fff" />
+            </Pressable>
           </View>
-          <Balance amount={accounts.data ? total : null} style={styles.totalValue} />
-          <Text style={styles.totalHint}>
-            {accounts.data
-              ? `Across ${accounts.data.length} account${accounts.data.length === 1 ? '' : 's'}`
-              : 'Loading…'}
-          </Text>
-        </Pressable>
-      ) : null}
+          {isMember && profile?.memberNo ? (
+            <View style={styles.memberChip}>
+              <Ionicons name="ribbon-outline" size={14} color={colors.accent} />
+              <Text style={styles.memberChipText}>
+                Member {profile.memberNo}
+                {since ? ` · since ${since}` : ''}
+              </Text>
+            </View>
+          ) : null}
+        </View>
 
-      <PromotionCarousel items={cards} />
+        <View style={styles.body}>
+          {hasAccounts ? (
+            <View style={styles.balanceCard}>
+              <View style={styles.balanceHead}>
+                <Text style={type.eyebrow}>Total balance</Text>
+                <BalanceToggle color={colors.muted} label={false} />
+              </View>
+              <Balance amount={accounts.data ? total : null} style={styles.balanceValue} />
+              <View style={styles.balanceFoot}>
+                <Text style={type.small}>
+                  {accounts.data
+                    ? `Across ${accounts.data.length} account${accounts.data.length === 1 ? '' : 's'}`
+                    : 'Loading…'}
+                </Text>
+                <Pressable
+                  onPress={() => router.push('/(member)/accounts')}
+                  accessibilityRole="button"
+                  hitSlop={8}
+                  style={({ pressed }) => [styles.linkRow, pressed && styles.pressed]}
+                >
+                  <Text style={styles.link}>View accounts</Text>
+                  <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+                </Pressable>
+              </View>
+            </View>
+          ) : !isMember && !me.isLoading ? (
+            <View style={styles.balanceCard}>
+              <Text style={type.eyebrow}>Membership</Text>
+              <Text style={styles.applyTitle}>Not a member yet</Text>
+              <Text style={[type.small, styles.applyText]}>
+                {openApplication
+                  ? `Your application ${openApplication.reference} is ${statusLabel(openApplication.status).toLowerCase()}.`
+                  : 'Apply on your phone in a few minutes. You will need your NIC and a proof of address.'}
+              </Text>
+              <Button
+                title={openApplication ? 'Continue application' : 'Apply to become a member'}
+                onPress={() =>
+                  openApplication
+                    ? router.push({ pathname: '/(apply)/[id]/form', params: { id: openApplication.id, step: '0' } })
+                    : router.push('/(apply)')
+                }
+              />
+            </View>
+          ) : null}
 
-      {profile?.pendingUpdate ? (
-        <Banner tone="info" title="Details update pending">
-          Sent {formatDate(profile.pendingUpdate.submittedAt)}. Staff will verify it before your record changes.
-        </Banner>
-      ) : profile?.lastUpdate?.status === 'declined' ? (
-        <Banner tone="warning" title="Your details update was not applied">
-          {profile.lastUpdate.comment ?? 'Visit a branch with your ID.'}
-        </Banner>
-      ) : null}
-
-      {!isMember && !me.isLoading ? (
-        <Card>
-          <Text style={type.subheading}>Not a member yet</Text>
-          <Spacer size="sm" />
-          <Body muted>
-            {openApplication
-              ? `Your application ${openApplication.reference} is ${statusLabel(openApplication.status).toLowerCase()}.`
-              : 'Apply on your phone in a few minutes. You will need your NIC and a proof of address.'}
-          </Body>
-          <Spacer />
-          <Button
-            title={openApplication ? 'Continue application' : 'Apply to become a member'}
-            onPress={() =>
-              openApplication
-                ? router.push({ pathname: '/(apply)/[id]/form', params: { id: openApplication.id, step: '0' } })
-                : router.push('/(apply)')
-            }
-          />
-        </Card>
-      ) : null}
-
-      {partners.length > 0 ? (
-        <>
-          <Heading>Our partners</Heading>
-          <Body muted>Show your membership card at these outlets for the discount.</Body>
-          <Spacer size="sm" />
-          <View style={styles.partners}>
-            {partners.map(o => (
-              <PartnerTile key={o.id} outlet={o} onPress={() => openPartner(o, () => router.push('/(member)/card'))} />
-            ))}
+          <View style={styles.notices}>
+            {problem ? <Banner tone="danger">{problem}</Banner> : null}
+            {rooted ? (
+              <Banner tone="warning" title="This phone appears to be rooted">
+                A rooted phone can expose what the app keeps on it. Use the app on a phone you trust.
+              </Banner>
+            ) : null}
+            {profile?.pendingUpdate ? (
+              <Banner tone="info" title="Details update pending">
+                Sent {formatDate(profile.pendingUpdate.submittedAt)}. Staff will verify it before your record changes.
+              </Banner>
+            ) : profile?.lastUpdate?.status === 'declined' ? (
+              <Banner tone="warning" title="Your details update was not applied">
+                {profile.lastUpdate.comment ?? 'Visit a branch with your ID.'}
+              </Banner>
+            ) : null}
           </View>
-        </>
-      ) : null}
-    </ScrollView>
+
+          {hasAccounts ? (
+            <>
+              <Eyebrow>Quick actions</Eyebrow>
+              <View style={styles.grid}>
+                {actions.map(a => {
+                  const on = !a.op || enabled.includes(a.op);
+                  return (
+                    <Pressable
+                      key={a.key}
+                      onPress={() => router.push(a.href)}
+                      disabled={!on}
+                      accessibilityRole="button"
+                      accessibilityState={{ disabled: !on }}
+                      accessibilityLabel={on ? a.label : `${a.label}, not available yet`}
+                      style={({ pressed }) => [styles.action, pressed && styles.pressed]}
+                    >
+                      <View style={[styles.actionTile, !on && styles.actionTileOff]}>
+                        {on ? <GlassSheen radius={20} intensity={0.13} /> : null}
+                        <Ionicons name={a.icon} size={24} color={on ? '#fff' : colors.subtle} />
+                      </View>
+                      <Text style={[styles.actionLabel, !on && { color: colors.subtle }]} numberOfLines={1}>
+                        {a.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <RecentRequests onSeeAll={() => router.push('/(member)/transact')} />
+            </>
+          ) : null}
+
+          {cards.length > 0 ? (
+            <>
+              <Eyebrow>What&apos;s new</Eyebrow>
+              <PromotionCarousel items={cards} />
+            </>
+          ) : null}
+
+          {partners.length > 0 ? (
+            <>
+              <Eyebrow>Our partners</Eyebrow>
+              {isMember ? (
+                <Pressable
+                  onPress={() => router.push('/(member)/card')}
+                  accessibilityRole="button"
+                  style={({ pressed }) => [styles.partnerBanner, pressed && styles.pressed]}
+                >
+                  <StarPattern scale={0.45} stroke={1} />
+                  <View style={styles.partnerBannerIcon}>
+                    <Ionicons name="gift-outline" size={22} color={colors.primaryDeep} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.partnerBannerTitle}>Partner discounts</Text>
+                    <Text style={styles.partnerBannerText}>
+                      Show your membership card at {partners.length} outlet{partners.length === 1 ? '' : 's'}
+                    </Text>
+                  </View>
+                  <Ionicons name="arrow-forward" size={20} color="#fff" />
+                </Pressable>
+              ) : null}
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.partnerStrip}
+                contentContainerStyle={styles.partnerStripContent}
+              >
+                {partners.map(o => (
+                  <PartnerTile key={o.id} outlet={o} onPress={() => openPartner(o, () => router.push('/(member)/card'))} />
+                ))}
+              </ScrollView>
+            </>
+          ) : null}
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
+// The latest few things asked for from the app, with where each stands.
+// Its own component so the request list is only fetched for someone who
+// holds an account.
+function RecentRequests({ onSeeAll }: { onSeeAll: () => void }) {
+  const requests = useRequests();
+  const list = sortRequests(requests.data ?? []).slice(0, 3);
+  if (list.length === 0) return null;
+  return (
+    <>
+      <Eyebrow
+        right={
+          <Pressable onPress={onSeeAll} accessibilityRole="button" hitSlop={8} style={styles.linkRow}>
+            <Text style={styles.link}>See all</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+          </Pressable>
+        }
+      >
+        Recent requests
+      </Eyebrow>
+      <View style={styles.listCard}>
+        {list.map((r, i) => (
+          <RequestRow key={r.id} request={r} first={i === 0} />
+        ))}
+      </View>
+    </>
+  );
+}
+
+function RequestRow({ request: r, first }: { request: MemberRequest; first: boolean }) {
+  const tone = TONE_COLOR[toneFor(r.state)];
+  return (
+    <View style={[styles.requestRow, !first && styles.requestDivider]}>
+      <View style={styles.requestIcon}>
+        <Ionicons name={KIND_ICON[r.kind]} size={18} color={colors.primary} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={type.label} numberOfLines={2}>
+          {requestTitle(r)}
+        </Text>
+        <Text style={styles.requestMeta} numberOfLines={1}>
+          {formatDate(r.createdAt)}
+          {r.forMinor ? ` · For ${r.forMinor}` : ''}
+        </Text>
+      </View>
+      <View style={styles.requestRight}>
+        <Text style={styles.requestAmount}>{formatMoney(r.amount)}</Text>
+        <Text style={[styles.requestStatus, { color: tone }]} numberOfLines={1}>
+          {r.statusLabel}
+        </Text>
+      </View>
+    </View>
   );
 }
 
@@ -151,72 +379,191 @@ function PartnerTile({ outlet, onPress }: { outlet: Outlet; onPress: () => void 
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={`${outlet.name}, ${discountLabel(outlet.discountPercent)}`}
-      style={({ pressed }) => [styles.partner, pressed && styles.partnerPressed]}
+      style={({ pressed }) => [styles.partner, pressed && styles.pressed]}
     >
       <View style={styles.partnerLogo}>
         <Image source={{ uri: outlet.logoUrl }} style={styles.partnerImage} resizeMode="contain" />
+        <View style={styles.partnerDiscount}>
+          <Text style={styles.partnerDiscountText}>{discountLabel(outlet.discountPercent)}</Text>
+        </View>
       </View>
-      <View style={styles.partnerStrip}>
-        <Text style={styles.partnerName} numberOfLines={1}>
-          {outlet.name}
-        </Text>
-        <Text style={styles.partnerDiscount}>{discountLabel(outlet.discountPercent)}</Text>
-      </View>
+      <Text style={styles.partnerName} numberOfLines={1}>
+        {outlet.name}
+      </Text>
     </Pressable>
   );
 }
 
+function firstName(displayName: string): string {
+  return displayName.trim().split(/\s+/)[0] ?? '';
+}
+
+function initials(displayName: string): string {
+  const parts = displayName.trim().split(/\s+/).filter(Boolean);
+  const letters = parts.length > 1 ? parts[0][0] + parts[parts.length - 1][0] : (parts[0] ?? '').slice(0, 2);
+  return letters.toUpperCase() || 'AB';
+}
+
 const styles = StyleSheet.create({
-  content: { padding: spacing.lg, paddingBottom: spacing.xxl },
-  memberNo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    marginTop: spacing.sm,
-    marginBottom: spacing.lg,
+  screen: { flex: 1, backgroundColor: colors.bg },
+  content: { paddingBottom: spacing.xxl },
+  pressed: { opacity: 0.85, transform: [{ scale: 0.97 }] },
+  overscroll: {
+    position: 'absolute',
+    top: -1000,
+    left: 0,
+    right: 0,
+    height: 1000,
+    backgroundColor: colors.primaryDark,
   },
-  memberNoLabel: { ...type.small },
-  memberNoValue: { ...type.subheading, color: colors.primary },
-  total: {
-    backgroundColor: colors.primary,
-    borderRadius: radius.lg,
-    padding: spacing.lg,
-    marginBottom: spacing.lg,
-  },
-  totalHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  totalLabel: { color: 'rgba(255,255,255,0.85)', fontSize: 14, fontWeight: '600' },
-  totalValue: { color: '#fff', fontSize: 32, fontWeight: '700', marginTop: spacing.xs },
-  totalHint: { color: 'rgba(255,255,255,0.75)', fontSize: 13, marginTop: spacing.xs },
-  partners: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
-  partner: {
-    width: '47%',
-    flexGrow: 1,
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
+
+  hero: {
+    backgroundColor: colors.primaryDark,
+    paddingHorizontal: spacing.lg + 4,
     overflow: 'hidden',
+    borderBottomLeftRadius: radius.xl,
+    borderBottomRightRadius: radius.xl,
   },
-  partnerPressed: { borderColor: colors.primary },
-  partnerLogo: {
-    width: '100%',
-    aspectRatio: 1.35,
-    backgroundColor: '#fff',
+  heroTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  avatar: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: spacing.sm,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.35)',
   },
-  partnerImage: { width: '100%', height: '100%' },
-  partnerStrip: {
+  avatarText: { color: colors.primaryDeep, fontSize: 16, fontWeight: '800', letterSpacing: 0.5 },
+  greetingBlock: { flex: 1 },
+  greeting: { color: colors.onDarkMuted, fontSize: 14 },
+  name: { color: colors.onDark, fontSize: 22, fontWeight: '800', letterSpacing: -0.3, marginTop: 1 },
+  heroIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    ...glass.onDark,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  memberChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    marginTop: spacing.lg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    borderRadius: radius.pill,
+    ...glass.onDark,
+    borderColor: 'rgba(200,162,76,0.35)',
+    borderTopColor: 'rgba(226,194,115,0.6)',
+  },
+  memberChipText: { color: colors.onDark, fontSize: 13, fontWeight: '600', letterSpacing: 0.2 },
+
+  body: { paddingHorizontal: spacing.lg },
+  balanceCard: {
+    marginTop: -OVERLAP,
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl - 4,
+    padding: spacing.xl - 2,
+    ...shadow.raised,
+  },
+  balanceHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  balanceValue: { ...type.display, marginTop: spacing.sm, fontVariant: ['tabular-nums'] },
+  balanceFoot: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs + 2,
+    marginTop: spacing.lg,
+    paddingTop: spacing.md,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: colors.divider,
   },
-  partnerName: { ...type.label, fontSize: 13, flex: 1 },
-  partnerDiscount: { fontSize: 12, fontWeight: '700', color: colors.primary },
+  linkRow: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  link: { color: colors.primary, fontSize: 14, fontWeight: '700' },
+  applyTitle: { ...type.heading, marginTop: spacing.sm },
+  applyText: { marginTop: spacing.xs, marginBottom: spacing.lg },
+
+  notices: { gap: 0, paddingTop: spacing.sm },
+
+  grid: { flexDirection: 'row', flexWrap: 'wrap', rowGap: spacing.lg },
+  action: { width: '33.333%', alignItems: 'center', gap: spacing.sm },
+  actionTile: {
+    width: 60,
+    height: 60,
+    borderRadius: 20,
+    ...glass.emerald,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionTileOff: { ...glass.frost, boxShadow: 'none' },
+  actionLabel: { fontSize: 13, fontWeight: '600', color: colors.text },
+
+  listCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.lg,
+    ...shadow.card,
+  },
+  requestRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.md + 2 },
+  requestDivider: { borderTopWidth: 1, borderTopColor: colors.divider },
+  requestIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: colors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  requestMeta: { fontSize: 12, color: colors.muted, marginTop: 2 },
+  requestRight: { alignItems: 'flex-end', maxWidth: '42%' },
+  requestAmount: { fontSize: 15, fontWeight: '700', color: colors.text, fontVariant: ['tabular-nums'] },
+  requestStatus: { fontSize: 12, fontWeight: '600', marginTop: 2 },
+
+  partnerBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    padding: spacing.lg,
+    borderRadius: radius.lg,
+    backgroundColor: colors.primary,
+    overflow: 'hidden',
+  },
+  partnerBannerIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  partnerBannerTitle: { color: '#fff', fontSize: 16, fontWeight: '800' },
+  partnerBannerText: { color: colors.onDarkMuted, fontSize: 13, marginTop: 2 },
+  partnerStrip: { marginHorizontal: -spacing.lg, marginTop: spacing.md },
+  partnerStripContent: { paddingHorizontal: spacing.lg, gap: spacing.md },
+  partner: { width: 132 },
+  partnerLogo: {
+    width: 132,
+    height: 100,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.sm,
+    ...shadow.card,
+  },
+  partnerImage: { width: '100%', height: '100%' },
+  partnerDiscount: {
+    position: 'absolute',
+    top: spacing.sm,
+    left: spacing.sm,
+    backgroundColor: colors.accentSoft,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+  },
+  partnerDiscountText: { fontSize: 11, fontWeight: '800', color: colors.accentInk },
+  partnerName: { ...type.label, fontSize: 13, marginTop: spacing.sm },
 });

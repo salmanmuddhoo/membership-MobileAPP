@@ -8,9 +8,11 @@ import React, { useEffect, useState } from 'react';
 import { BackHandler, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import { confirmDialog } from '../lib/dialog';
 import { Button } from '../ui';
 import { AnimatedLogo, FadeIn } from '../ui/Logo';
+import { StarPattern } from '../ui/Pattern';
 import { colors, spacing } from '../ui/theme';
 import { useAuth } from './AuthContext';
 import { isWeakPin, MAX_PIN_ATTEMPTS, PIN_LENGTH } from './pin';
@@ -30,7 +32,9 @@ export function LockGate() {
 
   if (!show) return null;
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+    <View style={[StyleSheet.absoluteFill, styles.backdrop]} pointerEvents="box-none">
+      <StatusBar style="light" />
+      <StarPattern scale={1.3} />
       <SafeAreaView style={styles.safe}>{locked ? <Unlock /> : <PinSetup replacing={pinOutdated} />}</SafeAreaView>
     </View>
   );
@@ -157,9 +161,10 @@ function firstName(displayName: string): string {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.primary },
+  backdrop: { backgroundColor: colors.primaryDark, overflow: 'hidden' },
+  safe: { flex: 1 },
   body: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl, gap: spacing.lg },
-  title: { fontSize: 24, fontWeight: '700', color: '#fff', textAlign: 'center', marginTop: spacing.sm },
+  title: { fontSize: 26, fontWeight: '800', letterSpacing: -0.4, color: '#fff', textAlign: 'center', marginTop: spacing.sm },
   subtitle: { fontSize: 15, color: 'rgba(255,255,255,0.8)', textAlign: 'center', marginTop: spacing.xs, maxWidth: 300 },
   message: { minHeight: 40, justifyContent: 'center', paddingHorizontal: spacing.lg },
   messageText: { color: '#FFD9D4', fontSize: 14, textAlign: 'center' },

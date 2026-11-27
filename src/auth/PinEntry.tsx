@@ -6,7 +6,8 @@ import * as Haptics from 'expo-haptics';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors, spacing } from '../ui/theme';
+import { GlassSheen } from '../ui/Glass';
+import { colors, glass, spacing } from '../ui/theme';
 import { PIN_LENGTH } from './pin';
 
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'back'] as const;
@@ -39,7 +40,7 @@ export function PinEntry({
       <View style={styles.pad}>
         {KEYS.map((key, i) =>
           key === '' ? (
-            <View key={i} style={styles.key} />
+            <View key={`blank-${i}`} style={[styles.key, styles.keyBlank]} />
           ) : (
             <Pressable
               key={key}
@@ -49,6 +50,7 @@ export function PinEntry({
               accessibilityLabel={key === 'back' ? 'Delete' : key}
               style={({ pressed }) => [styles.key, pressed && styles.keyPressed]}
             >
+              <GlassSheen radius={36} intensity={0.08} />
               {key === 'back' ? (
                 <Ionicons name="backspace-outline" size={28} color="#fff" />
               ) : (
@@ -86,8 +88,9 @@ const styles = StyleSheet.create({
     borderRadius: 36,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    ...glass.onDark,
   },
-  keyPressed: { backgroundColor: 'rgba(255,255,255,0.3)' },
-  keyText: { fontSize: 28, fontWeight: '600', color: '#fff' },
+  keyBlank: { backgroundColor: 'transparent', borderWidth: 0, boxShadow: 'none' },
+  keyPressed: { backgroundColor: 'rgba(200,162,76,0.35)', borderColor: colors.accent },
+  keyText: { fontSize: 28, fontWeight: '500', color: '#fff' },
 });

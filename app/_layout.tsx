@@ -4,6 +4,7 @@ import { usePreventScreenCapture } from 'expo-screen-capture';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
+import { Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ApiError } from '@/api';
@@ -11,7 +12,7 @@ import { AuthProvider, useAuth } from '@/auth/AuthContext';
 import { LockGate } from '@/auth/LockGate';
 import { PushRegistration } from '@/push/PushRegistration';
 import { BalanceVisibilityProvider } from '@/store/balances';
-import { colors } from '@/ui/theme';
+import { stackHeader } from '@/ui/header';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -46,9 +47,10 @@ function GuardWhenSignedIn() {
 }
 
 // Push notifications need a session to register against (docs/push-notifications.md).
+// The web preview has no push, and expo-notifications throws there.
 function PushWhenSignedIn() {
   const { session } = useAuth();
-  return session ? <PushRegistration /> : null;
+  return session && Platform.OS !== 'web' ? <PushRegistration /> : null;
 }
 
 function HideSplashWhenReady() {
@@ -66,15 +68,10 @@ export default function RootLayout() {
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
             <BalanceVisibilityProvider>
-            <StatusBar style="light" />
-            <Stack
-              screenOptions={{
-                headerStyle: { backgroundColor: colors.primary },
-                headerTintColor: '#fff',
-                headerTitleStyle: { fontWeight: '600' },
-                contentStyle: { backgroundColor: colors.bg },
-              }}
-            >
+            {/* Dark text on the light headers; the emerald screens (home,
+                welcome, the lock) turn it white while they show. */}
+            <StatusBar style="dark" />
+            <Stack screenOptions={stackHeader}>
               <Stack.Screen name="index" options={{ headerShown: false }} />
               <Stack.Screen name="(auth)" options={{ headerShown: false }} />
               <Stack.Screen name="(member)" options={{ headerShown: false }} />

@@ -17,8 +17,9 @@ import { ApiError, type MemberOperation, type MemberRequest } from '@/api';
 import { useReference, useRequests } from '@/hooks/queries';
 import { formatDate, formatMoney } from '@/lib/format';
 import { requestTitle, sortRequests, toneFor } from '@/lib/transact';
-import { Badge, Banner, Body, Card, Heading, Loading } from '@/ui';
-import { colors, radius, spacing, type } from '@/ui/theme';
+import { Badge, Banner, Body, Card, Eyebrow, Loading } from '@/ui';
+import { GlassSheen } from '@/ui/Glass';
+import { colors, glass, radius, shadow, spacing, type } from '@/ui/theme';
 
 const ACTIONS: {
   op: MemberOperation;
@@ -27,14 +28,14 @@ const ACTIONS: {
   icon: React.ComponentProps<typeof Ionicons>['name'];
   href: '/transact/deposit' | '/transact/withdrawal' | '/transact/transfer';
 }[] = [
-  { op: 'deposit', title: 'Deposit', detail: 'Tell us about money you paid in', icon: 'arrow-down-circle-outline', href: '/transact/deposit' },
-  { op: 'withdrawal', title: 'Withdraw', detail: 'Ask for money out', icon: 'arrow-up-circle-outline', href: '/transact/withdrawal' },
-  { op: 'transfer', title: 'Transfer', detail: 'Between your accounts', icon: 'swap-horizontal-outline', href: '/transact/transfer' },
+  { op: 'deposit', title: 'Deposit', detail: 'Tell us about money you paid in', icon: 'arrow-down', href: '/transact/deposit' },
+  { op: 'withdrawal', title: 'Withdraw', detail: 'Ask for money out', icon: 'arrow-up', href: '/transact/withdrawal' },
+  { op: 'transfer', title: 'Transfer', detail: 'Between your accounts', icon: 'swap-horizontal', href: '/transact/transfer' },
 ];
 
 const KIND_ICON: Record<MemberOperation, React.ComponentProps<typeof Ionicons>['name']> = {
-  deposit: 'arrow-down-circle',
-  withdrawal: 'arrow-up-circle',
+  deposit: 'arrow-down',
+  withdrawal: 'arrow-up',
   transfer: 'swap-horizontal',
 };
 
@@ -74,8 +75,9 @@ export default function Transact() {
               accessibilityLabel={on ? `${a.title}. ${a.detail}` : `${a.title}, not available yet`}
               style={({ pressed }) => [styles.action, !on && styles.actionOff, pressed && styles.actionPressed]}
             >
-              <View style={[styles.actionIcon, !on && { backgroundColor: colors.bg }]}>
-                <Ionicons name={a.icon} size={28} color={on ? colors.primary : colors.muted} />
+              <View style={[styles.actionIcon, !on && styles.actionIconOff]}>
+                {on ? <GlassSheen radius={18} intensity={0.13} /> : null}
+                <Ionicons name={a.icon} size={24} color={on ? '#fff' : colors.subtle} />
               </View>
               <Text style={[type.label, !on && { color: colors.muted }]}>{a.title}</Text>
               <Text style={styles.actionDetail} numberOfLines={2}>
@@ -89,7 +91,7 @@ export default function Transact() {
         <Banner tone="info">The Society has not switched on transactions from the app yet. Until it does, visit a branch.</Banner>
       ) : null}
 
-      <Heading>My requests</Heading>
+      <Eyebrow style={styles.eyebrow}>My requests</Eyebrow>
       {requests.error ? (
         <Banner tone="danger">{requests.error instanceof ApiError ? requests.error.userMessage : 'Could not load your requests.'}</Banner>
       ) : null}
@@ -108,7 +110,9 @@ function RequestCard({ request: r }: { request: MemberRequest }) {
   return (
     <Card style={styles.request}>
       <View style={styles.requestHead}>
-        <Ionicons name={KIND_ICON[r.kind]} size={22} color={colors.primary} />
+        <View style={styles.requestIcon}>
+          <Ionicons name={KIND_ICON[r.kind]} size={18} color={colors.primary} />
+        </View>
         <View style={{ flex: 1 }}>
           <Text style={type.label} numberOfLines={2}>
             {requestTitle(r)}
@@ -139,24 +143,35 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     gap: spacing.xs,
-    paddingVertical: spacing.md,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.md,
     paddingHorizontal: spacing.sm,
-    borderRadius: radius.md,
+    borderRadius: radius.lg,
     backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
+    ...shadow.card,
   },
   actionOff: { opacity: 0.6 },
-  actionPressed: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+  actionPressed: { transform: [{ scale: 0.97 }], backgroundColor: colors.primarySoft },
   actionIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 52,
+    height: 52,
+    borderRadius: 18,
+    marginBottom: spacing.xs,
+    ...glass.emerald,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionIconOff: { ...glass.frost, boxShadow: 'none' },
+  actionDetail: { fontSize: 12, color: colors.muted, textAlign: 'center' },
+  eyebrow: { marginTop: spacing.lg, marginBottom: 0 },
+  requestIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
     backgroundColor: colors.primarySoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  actionDetail: { fontSize: 12, color: colors.muted, textAlign: 'center' },
   request: { gap: spacing.sm, marginBottom: 0 },
   requestHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   amount: { ...type.subheading, color: colors.text },

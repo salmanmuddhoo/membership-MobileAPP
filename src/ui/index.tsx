@@ -18,7 +18,8 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, radius, spacing, type } from './theme';
+import { GlassSheen } from './Glass';
+import { colors, glass, radius, shadow, spacing, type } from './theme';
 
 // --- layout -----------------------------------------------------------------
 
@@ -63,6 +64,26 @@ export function Title({ children }: { children: React.ReactNode }) {
 }
 export function Heading({ children }: { children: React.ReactNode }) {
   return <Text style={[type.heading, styles.heading]}>{children}</Text>;
+}
+// The small capitals that open a section ("QUICK ACTIONS"), with an
+// optional control on the right.
+export function Eyebrow({
+  children,
+  right,
+  style,
+}: {
+  children: React.ReactNode;
+  right?: React.ReactNode;
+  style?: StyleProp<ViewStyle>;
+}) {
+  return (
+    <View style={[styles.eyebrow, style]}>
+      <Text style={type.eyebrow} accessibilityRole="header">
+        {children}
+      </Text>
+      {right}
+    </View>
+  );
 }
 export function Body({
   children,
@@ -217,6 +238,7 @@ export function Button({
         style,
       ]}
     >
+      {variant !== 'ghost' ? <GlassSheen radius={radius.md} intensity={variant === 'secondary' ? 0.5 : 0.11} /> : null}
       {loading ? (
         <ActivityIndicator color={variant === 'primary' || variant === 'danger' ? '#fff' : colors.primary} />
       ) : (
@@ -393,64 +415,72 @@ const styles = StyleSheet.create({
   radioSelected: { borderColor: colors.primary },
   radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.primary },
   safe: { flex: 1, backgroundColor: colors.bg },
+  eyebrow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: spacing.xl,
+    marginBottom: spacing.md,
+  },
   flex: { flex: 1 },
   padded: { padding: spacing.lg },
   scrollContent: { paddingBottom: spacing.xxl },
   footer: {
     padding: spacing.lg,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.border,
+    borderTopWidth: 1,
+    borderTopColor: colors.divider,
     backgroundColor: colors.surface,
     gap: spacing.sm,
   },
   title: { marginBottom: spacing.sm },
-  heading: { marginTop: spacing.lg, marginBottom: spacing.sm },
+  heading: { marginTop: spacing.xl, marginBottom: spacing.md },
   card: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
-    padding: spacing.lg,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
+    padding: spacing.lg + 2,
+    borderWidth: 1,
+    borderColor: 'rgba(20, 32, 28, 0.04)',
     marginBottom: spacing.md,
+    ...shadow.card,
   },
-  pressed: { opacity: 0.85 },
+  pressed: { opacity: 0.85, transform: [{ scale: 0.985 }] },
   disabled: { opacity: 0.5 },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    paddingVertical: spacing.sm,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
+    paddingVertical: spacing.md - 2,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.divider,
     gap: spacing.md,
   },
   rowLast: { borderBottomWidth: 0 },
   rowLabel: { flex: 1 },
   rowValue: { flex: 1.4, alignItems: 'flex-end' },
-  banner: { borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.md },
+  banner: { borderRadius: radius.md, paddingVertical: spacing.md, paddingHorizontal: spacing.lg, marginBottom: spacing.md },
   badge: { borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 3, alignSelf: 'flex-start' },
   badgeText: { fontSize: 12, fontWeight: '600' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl, minHeight: 200 },
   button: {
-    minHeight: 50,
+    minHeight: 52,
     borderRadius: radius.md,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.lg,
   },
-  button_primary: { backgroundColor: colors.primary },
-  button_secondary: { backgroundColor: colors.primarySoft },
+  button_primary: { ...glass.emerald },
+  button_secondary: { ...glass.frost },
   button_ghost: { backgroundColor: 'transparent' },
-  button_danger: { backgroundColor: colors.danger },
-  buttonText: { fontSize: 16, fontWeight: '600' },
+  button_danger: { ...glass.danger },
+  buttonText: { fontSize: 16, fontWeight: '700', letterSpacing: 0.1 },
   buttonText_primary: { color: '#fff' },
   buttonText_secondary: { color: colors.primary },
   buttonText_ghost: { color: colors.primary },
   buttonText_danger: { color: '#fff' },
   field: { marginBottom: spacing.lg },
   input: {
-    marginTop: spacing.xs,
-    minHeight: 48,
+    marginTop: spacing.xs + 2,
+    minHeight: 50,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.md,

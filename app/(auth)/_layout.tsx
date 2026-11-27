@@ -1,15 +1,11 @@
 import { Stack } from 'expo-router';
 import React from 'react';
-import { colors } from '@/ui/theme';
+import { stackHeader } from '@/ui/header';
 
 export default function AuthLayout() {
   return (
     <Stack
-      screenOptions={{
-        headerStyle: { backgroundColor: colors.primary },
-        headerTintColor: '#fff',
-        contentStyle: { backgroundColor: colors.bg },
-      }}
+      screenOptions={stackHeader}
     >
       <Stack.Screen name="welcome" options={{ headerShown: false }} />
       <Stack.Screen name="link" options={{ title: 'Link my membership' }} />
